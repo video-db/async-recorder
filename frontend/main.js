@@ -1,10 +1,16 @@
 const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { randomUUID } = require('crypto');
+const net = require('net');
 const { CaptureClient } = require('videodb/capture');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-
+// --- In-process server modules (replaces Python backend) ---
+const { initDatabase, closeDatabase, findUserByToken, findUserByApiKey, createUser, getRecordings: dbGetRecordings, getRecordingById } = require('./server/database');
+const { VideoDBService } = require('./server/videodb-service');
+const { TunnelManager } = require('./server/tunnel');
+const { createServer } = require('./server/index');
 
 let mainWindow;
 let cameraWindow;
@@ -12,10 +18,17 @@ let cameraWindow;
 // CaptureClient instance (created per session)
 let captureClient = null;
 
-// Configuration
+// In-process services
+let db = null;
+let videodbService = null;
+let tunnelManager = null;
+let expressServer = null;
+let serverPort = null;
+let webhookUrl = null;
 
+// Configuration
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
-const RUNTIME_FILE = path.join(__dirname, '..', 'runtime.json');
+const DB_FILE = path.join(app.getPath('userData'), 'async-recorder.db');
 const AUTH_CONFIG_FILE = path.join(__dirname, '..', 'auth_config.json');
 
 let appConfig = {
@@ -23,10 +36,9 @@ let appConfig = {
   userName: null
 };
 
-let runtimeConfig = {
-  backendBaseUrl: null,
-  callbackUrl: null
-};
+// Session token cache (valid for 24 hours)
+let cachedSessionToken = null;
+let tokenExpiresAt = null;
 
 // 1. Load User Config (Persistent Auth)
 function loadUserConfig() {
@@ -53,43 +65,45 @@ function saveUserConfig(newConfig) {
   }
 }
 
-// 2. Load Runtime Config (Ephemeral Server Info)
-function loadRuntimeConfig() {
-  try {
-    if (fs.existsSync(RUNTIME_FILE)) {
-      const data = JSON.parse(fs.readFileSync(RUNTIME_FILE, 'utf8'));
-
-      // Update runtime state
-      if (data.api_url) runtimeConfig.backendBaseUrl = data.api_url;
-      if (data.webhook_url) runtimeConfig.callbackUrl = data.webhook_url;
-
-      console.log('Loaded Runtime Config:', RUNTIME_FILE);
-      console.log('   - Backend:', runtimeConfig.backendBaseUrl);
-      console.log('   - Callback:', runtimeConfig.callbackUrl);
-      console.log('   - Updated:', new Date(data.updated_at).toLocaleTimeString());
-    } else {
-      console.warn('Runtime config not found at:', RUNTIME_FILE);
-      console.warn('   Ensure the Python server is running.');
-    }
-  } catch (error) {
-    console.error('Error loading runtime config:', error);
-  }
+/**
+ * Find an available port starting from the given port number.
+ */
+function findAvailablePort(startPort) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(startPort, () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      resolve(findAvailablePort(startPort + 1));
+    });
+  });
 }
 
-// Session token cache (valid for 24 hours)
-let cachedSessionToken = null;
-let tokenExpiresAt = null;
+/**
+ * Look up the current user's API key from the database using appConfig.accessToken.
+ */
+function getCurrentUserApiKey() {
+  if (!appConfig.accessToken) return null;
+  const user = findUserByToken(appConfig.accessToken);
+  return user ? user.api_key : null;
+}
 
-// 3. Auto-register from auth_config.json (created by npm run setup)
+/**
+ * Look up the current user from the database.
+ */
+function getCurrentUser() {
+  if (!appConfig.accessToken) return null;
+  return findUserByToken(appConfig.accessToken);
+}
+
+// 2. Auto-register from auth_config.json (created by npm run setup or manual file)
 async function autoRegisterFromSetup() {
-  // Check if auth_config.json exists (from npm run setup)
   if (!fs.existsSync(AUTH_CONFIG_FILE)) {
-    // No setup file - use existing config or show onboarding
     return;
   }
 
-  // auth_config.json exists - always register with these credentials
-  // This allows users to re-run setup to update their API key
   try {
     const authConfig = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf8'));
     const { apiKey, name } = authConfig;
@@ -102,25 +116,10 @@ async function autoRegisterFromSetup() {
 
     console.log(`Registering from setup: ${name || 'Guest'}`);
 
-    // Wait for runtime config to be available
-    if (!runtimeConfig.backendBaseUrl) {
-      console.log('Backend not ready, will register on next launch');
-      return;
-    }
-
-    const baseUrl = runtimeConfig.backendBaseUrl;
-    const registerUrl = `${baseUrl}/api/register`;
-
-    const response = await fetch(registerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name || 'Guest', api_key: apiKey })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Registration failed:', errorText);
-      // Delete auth_config.json and clear old token so onboarding shows
+    // Verify API key directly with VideoDB SDK
+    const valid = await videodbService.verifyApiKey(apiKey);
+    if (!valid) {
+      console.error('Registration failed: Invalid API key');
       fs.unlinkSync(AUTH_CONFIG_FILE);
       appConfig.accessToken = null;
       saveUserConfig({ accessToken: null, userName: null });
@@ -128,15 +127,21 @@ async function autoRegisterFromSetup() {
       return;
     }
 
-    const result = await response.json();
-    console.log('Registration successful!');
+    // Create or update user in local DB
+    const existingUser = findUserByApiKey(apiKey);
+    let accessToken;
+    let userName = name || 'Guest';
 
-    // Save user config
-    const newConfig = {
-      accessToken: result.access_token,
-      userName: result.name
-    };
-    saveUserConfig(newConfig);
+    if (existingUser) {
+      accessToken = existingUser.access_token;
+      userName = existingUser.name;
+    } else {
+      accessToken = randomUUID();
+      createUser(userName, apiKey, accessToken);
+    }
+
+    console.log('Registration successful!');
+    saveUserConfig({ accessToken, userName });
 
     // Delete auth_config.json after successful registration
     fs.unlinkSync(AUTH_CONFIG_FILE);
@@ -144,101 +149,72 @@ async function autoRegisterFromSetup() {
 
   } catch (error) {
     console.error('Registration error:', error);
-    // Clean up on error
     if (fs.existsSync(AUTH_CONFIG_FILE)) {
       fs.unlinkSync(AUTH_CONFIG_FILE);
     }
   }
 }
 
-// Initialize SDK on app ready
-async function initializeSDK() {
+// Initialize everything on app ready
+async function initializeApp() {
   try {
-    // Load configs
-    loadUserConfig();
-    loadRuntimeConfig();
+    // 1. Initialize database
+    console.log('Initializing database at:', DB_FILE);
+    db = await initDatabase(DB_FILE);
 
-    // Auto-register if setup was run but not yet registered
+    // 2. Create VideoDB service
+    const apiUrl = process.env.VIDEODB_API_URL || null;
+    videodbService = new VideoDBService({ baseUrl: apiUrl });
+
+    // 3. Load user config
+    loadUserConfig();
+
+    // 4. Auto-register if setup was run
     await autoRegisterFromSetup();
+
+    // 5. Start Express server for webhooks
+    const startPort = parseInt(process.env.API_PORT, 10) || 8000;
+    serverPort = await findAvailablePort(startPort);
+
+    tunnelManager = new TunnelManager();
+    const expressApp = createServer({ database: db, videodbService, tunnelManager });
+    expressServer = expressApp.listen(serverPort, () => {
+      console.log(`Express webhook server listening on port ${serverPort}`);
+    });
+
+    // 6. Start Cloudflare tunnel
+    const envWebhookUrl = process.env.WEBHOOK_URL || null;
+    webhookUrl = await tunnelManager.start(serverPort, envWebhookUrl);
+    if (webhookUrl) {
+      console.log(`Webhook URL: ${webhookUrl}`);
+    } else {
+      console.warn('Tunnel not available - webhooks will not work');
+    }
 
     console.log('VideoDB SDK Configuration:');
     console.log('- AUTH_STATUS:', appConfig.accessToken ? 'Connected' : 'Needs Connection');
-    console.log('- BACKEND_BASE_URL:', runtimeConfig.backendBaseUrl);
-
-    // CaptureClient is now created per-session when starting recording
-    // No global init needed
-    console.log('SDK ready (CaptureClient will be created per session)');
+    console.log('- SERVER_PORT:', serverPort);
+    console.log('- WEBHOOK_URL:', webhookUrl);
+    console.log('App ready (CaptureClient will be created per session)');
   } catch (error) {
-    console.error('Failed to initialize SDK:', error);
+    console.error('Failed to initialize app:', error);
   }
 }
 
 // Setup event listeners on the CaptureClient instance
 function setupCaptureClientEvents(client) {
-  // Map new SDK events to existing event names for backwards compatibility with renderer
-  client.on('recording:started', (data) => {
-    console.log('SDK Event: recording:started', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'recording:started',
-        data
-      });
-    }
-  });
-
-  client.on('recording:stopped', (data) => {
-    console.log('SDK Event: recording:stopped', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'recording:stopped',
-        data
-      });
-    }
-  });
-
-  client.on('recording:error', (data) => {
-    console.log('SDK Event: recording:error', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'recording:error',
-        data
-      });
-    }
-  });
-
-  client.on('upload:progress', (data) => {
-    console.log('SDK Event: upload:progress', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'upload:progress',
-        data
-      });
-    }
-  });
-
-  client.on('upload:complete', (data) => {
-    console.log('SDK Event: upload:complete', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'upload:complete',
-        data
-      });
-    }
-  });
-
-  client.on('error', (data) => {
-    console.log('SDK Event: error', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'error',
-        data
-      });
-    }
-  });
+  const events = ['recording:started', 'recording:stopped', 'recording:error', 'upload:progress', 'upload:complete', 'error'];
+  for (const eventName of events) {
+    client.on(eventName, (data) => {
+      console.log(`SDK Event: ${eventName}`, data);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('recorder-event', { event: eventName, data });
+      }
+    });
+  }
 }
 
-// IPC Handlers for Capture SDK
-// Helper function to get or fetch session token
+// Helper function to get or generate session token (direct SDK call, no HTTP)
 async function getSessionToken() {
   // Check if we have a valid cached token
   if (cachedSessionToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
@@ -246,118 +222,83 @@ async function getSessionToken() {
     return cachedSessionToken;
   }
 
-  // Need to fetch a new token
-  // Use dynamic URL from runtime config
-  const baseUrl = runtimeConfig.backendBaseUrl || 'http://localhost:8000';
-  const tokenEndpoint = `${baseUrl}/api/token`;
-  const accessToken = appConfig.accessToken;
-
-  if (!accessToken) {
-    console.warn('Access Token not available. Please register first.');
+  const apiKey = getCurrentUserApiKey();
+  if (!apiKey) {
+    console.warn('No API key available. Please register first.');
     return null;
   }
 
   try {
-    console.log(`fetching session token from: ${tokenEndpoint}`);
-    const response = await fetch(tokenEndpoint, {
-      method: 'POST',
-      headers: {
-        'x-access-token': accessToken, // Send UUID token
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        user_id: "electron-user" // Optional, backend will use internal ID if mapped
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`Error fetching token: ${response.status} ${errText}`);
-      throw new Error(`Failed to fetch token: ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.session_token) {
-      cachedSessionToken = data.session_token;
-      // expires_in is in seconds, convert to ms and subtract a buffer (e.g. 5 mins)
-      const expiresInMs = (data.expires_in || 3600) * 1000;
-      tokenExpiresAt = Date.now() + expiresInMs - (5 * 60 * 1000);
+    console.log('Generating session token via VideoDB SDK...');
+    const tokenData = await videodbService.generateSessionToken(apiKey);
+    if (tokenData && tokenData.sessionToken) {
+      cachedSessionToken = tokenData.sessionToken;
+      const expiresInMs = (tokenData.expiresIn || 3600) * 1000;
+      tokenExpiresAt = Date.now() + expiresInMs - (5 * 60 * 1000); // 5 min buffer
       return cachedSessionToken;
     }
   } catch (error) {
-    console.error('Network error fetching token:', error);
+    console.error('Error generating session token:', error);
   }
   return null;
 }
+
+// --- IPC Handlers ---
 
 ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config) => {
   try {
     console.log(`Starting recording (client reference: ${clientSessionId})`);
 
-    // CONFIGURATION
-    const baseUrl = runtimeConfig.backendBaseUrl || 'http://localhost:8000';
     const accessToken = appConfig.accessToken;
-
     if (!accessToken) {
       console.error('Not authenticated');
       return { success: false, error: 'Not authenticated. Please register first.' };
     }
 
-    // 1. Create capture session on the server FIRST (required by new SDK)
-    console.log('Creating capture session on server...');
+    const user = getCurrentUser();
+    if (!user) {
+      return { success: false, error: 'User not found. Please register first.' };
+    }
+
+    // 1. Create capture session directly via VideoDB SDK
+    console.log('Creating capture session via SDK...');
     let captureSessionId;
     try {
-      const createSessionResp = await fetch(`${baseUrl}/api/capture-session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-access-token': accessToken
-        },
-        body: JSON.stringify({
-          callback_url: runtimeConfig.callbackUrl,
-          metadata: { clientSessionId, startedAt: Date.now() }
-        })
+      const callbackUrl = webhookUrl || null;
+      const sessionData = await videodbService.createCaptureSession(user.api_key, {
+        endUserId: `user-${user.id}`,
+        callbackUrl,
+        metadata: { clientSessionId, startedAt: Date.now() },
       });
-
-      if (!createSessionResp.ok) {
-        const errText = await createSessionResp.text();
-        console.error(`Failed to create capture session: ${createSessionResp.status} ${errText}`);
-        return { success: false, error: 'Failed to create capture session on server' };
-      }
-
-      const sessionData = await createSessionResp.json();
-      captureSessionId = sessionData.session_id;
+      captureSessionId = sessionData.sessionId;
       console.log(`Capture session created: ${captureSessionId}`);
     } catch (err) {
       console.error('Error creating capture session:', err);
       return { success: false, error: 'Failed to create capture session: ' + err.message };
     }
 
-    // 3. Get session token (from cache or fetch new one)
+    // 2. Get session token (from cache or generate new one)
     const sessionToken = await getSessionToken();
     if (!sessionToken) {
       console.error('Failed to get session token');
       return { success: false, error: 'Failed to get session token. Please register first.' };
     }
 
-    // 4. Create a new CaptureClient instance
-    const captureOptions = { sessionToken: sessionToken };
+    // 3. Create a new CaptureClient instance
+    const captureOptions = { sessionToken };
     if (process.env.VIDEODB_API_URL) {
       captureOptions.apiUrl = process.env.VIDEODB_API_URL;
     }
-    console.log(`Creating CaptureClient`, captureOptions);
+    console.log('Creating CaptureClient', captureOptions);
 
     captureClient = new CaptureClient(captureOptions);
-
-    // Setup event listeners
     setupCaptureClientEvents(captureClient);
 
-    // 5. List available channels
+    // 4. List available channels
     console.log('Listing available channels...');
     let channels;
     try {
       channels = await captureClient.listChannels();
-      // Log all available channels
       for (const ch of channels.all()) {
         console.log(`  - ${ch.id} (${ch.type}): ${ch.name}`);
       }
@@ -366,39 +307,24 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
       return { success: false, error: 'Failed to list capture channels' };
     }
 
-    // 6. Select channels for capture (using new SDK API)
+    // 5. Select channels for capture
     const captureChannels = [];
 
-    // Get default mic channel
     const micChannel = channels.mics.default;
     if (micChannel) {
-      captureChannels.push({
-        channelId: micChannel.id,
-        type: 'audio',
-        store: true
-      });
+      captureChannels.push({ channelId: micChannel.id, type: 'audio', store: true });
       console.log(`Selected mic channel: ${micChannel.id}`);
     }
 
-    // Get default system audio channel
     const systemAudioChannel = channels.systemAudio.default;
     if (systemAudioChannel) {
-      captureChannels.push({
-        channelId: systemAudioChannel.id,
-        type: 'audio',
-        store: true
-      });
+      captureChannels.push({ channelId: systemAudioChannel.id, type: 'audio', store: true });
       console.log(`Selected system audio channel: ${systemAudioChannel.id}`);
     }
 
-    // Get default display channel
     const displayChannel = channels.displays.default;
     if (displayChannel) {
-      captureChannels.push({
-        channelId: displayChannel.id,
-        type: 'video',
-        store: true,
-      });
+      captureChannels.push({ channelId: displayChannel.id, type: 'video', store: true });
       console.log(`Selected display channel: ${displayChannel.id}`);
     }
 
@@ -407,7 +333,7 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
       return { success: false, error: 'No capture channels available. Check permissions.' };
     }
 
-    // 7. Start capture session with the SERVER-CREATED session ID
+    // 6. Start capture session
     console.log('Starting capture session with options:', JSON.stringify({
       sessionId: captureSessionId,
       channels: captureChannels
@@ -420,8 +346,6 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
 
     console.log('Capture session started successfully');
 
-    // Manually emit recording:started event to update UI
-    // (The SDK may not emit this event consistently)
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('recorder-event', {
         event: 'recording:started',
@@ -436,17 +360,13 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
   }
 });
 
-// Check Tunnel Status Handler
+// Check Tunnel Status Handler (direct, no HTTP)
 ipcMain.handle('check-tunnel-status', async () => {
-  try {
-    const baseUrl = runtimeConfig.backendBaseUrl || 'http://localhost:8000';
-    const response = await fetch(`${baseUrl}/api/tunnel/status`);
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to check tunnel status:', error);
-    return { active: false, error: error.message };
-  }
+  return {
+    active: tunnelManager ? tunnelManager.isRunning() : false,
+    webhook_url: tunnelManager ? tunnelManager.getWebhookUrl() : null,
+    provider: 'cloudflare',
+  };
 });
 
 // Open External Link
@@ -462,7 +382,6 @@ ipcMain.handle('recorder-stop-recording', async (event, sessionId) => {
       await captureClient.stopSession();
       console.log('Capture session stopped');
 
-      // Shutdown the capture client to release the binary
       try {
         await captureClient.shutdown();
         console.log('CaptureClient shutdown complete');
@@ -471,7 +390,6 @@ ipcMain.handle('recorder-stop-recording', async (event, sessionId) => {
       }
       captureClient = null;
 
-      // Manually emit recording:stopped event to update UI
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('recorder-event', {
           event: 'recording:stopped',
@@ -527,7 +445,6 @@ ipcMain.handle('recorder-request-permission', async (event, type) => {
   try {
     console.log(`Requesting permission: ${type}`);
 
-    // Map permission types to SDK expected values
     const permissionMap = {
       'microphone': 'microphone',
       'screen': 'screen-capture',
@@ -536,7 +453,6 @@ ipcMain.handle('recorder-request-permission', async (event, type) => {
 
     const sdkPermission = permissionMap[type] || type;
 
-    // Create a temporary client for permission requests if needed
     if (!captureClient) {
       const sessionToken = await getSessionToken();
       if (sessionToken) {
@@ -549,7 +465,6 @@ ipcMain.handle('recorder-request-permission', async (event, type) => {
         await tempClient.shutdown();
         return { success: true, status: result };
       }
-      // Fall back to system preferences for permission check
       return { success: true, status: 'undetermined' };
     }
 
@@ -561,15 +476,12 @@ ipcMain.handle('recorder-request-permission', async (event, type) => {
   }
 });
 
-// Keep existing permission handlers for Electron APIs
-// Note: systemPreferences permission APIs are macOS-only
-// On Windows, permissions are handled at the browser level via getUserMedia
-
+// Permission handlers (macOS systemPreferences)
 ipcMain.handle('check-mic-permission', () => {
   if (process.platform === 'darwin') {
     return systemPreferences.getMediaAccessStatus('microphone');
   }
-  return 'granted'; // Windows handles this via browser prompt
+  return 'granted';
 });
 
 ipcMain.handle('check-screen-permission', () => {
@@ -582,7 +494,7 @@ ipcMain.handle('check-screen-permission', () => {
       return 'error';
     }
   }
-  return 'granted'; // Windows handles this via browser prompt
+  return 'granted';
 });
 
 ipcMain.handle('request-mic-permission', async () => {
@@ -595,16 +507,14 @@ ipcMain.handle('request-mic-permission', async () => {
       return { granted: false, status: 'error', message: error.message };
     }
   }
-  // Windows: permission handled by browser when getUserMedia is called
   return { granted: true, status: 'granted' };
 });
 
-// Camera permission handlers
 ipcMain.handle('check-camera-permission', () => {
   if (process.platform === 'darwin') {
     return systemPreferences.getMediaAccessStatus('camera');
   }
-  return 'granted'; // Windows handles this via browser prompt
+  return 'granted';
 });
 
 ipcMain.handle('request-camera-permission', async () => {
@@ -617,7 +527,6 @@ ipcMain.handle('request-camera-permission', async () => {
       return { granted: false, status: 'error', message: error.message };
     }
   }
-  // Windows: permission handled by browser when getUserMedia is called
   return { granted: true, status: 'granted' };
 });
 
@@ -626,7 +535,6 @@ ipcMain.handle('open-system-settings', async (event, type) => {
     let url = '';
 
     if (process.platform === 'darwin') {
-      // macOS system preferences URLs
       if (type === 'mic') {
         url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
       } else if (type === 'screen') {
@@ -635,13 +543,11 @@ ipcMain.handle('open-system-settings', async (event, type) => {
         url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Camera';
       }
     } else if (process.platform === 'win32') {
-      // Windows Settings app URLs
       if (type === 'mic') {
         url = 'ms-settings:privacy-microphone';
       } else if (type === 'camera') {
         url = 'ms-settings:privacy-webcam';
       } else if (type === 'screen') {
-        // Windows doesn't have a dedicated screen capture privacy setting
         url = 'ms-settings:privacy';
       }
     }
@@ -660,62 +566,55 @@ ipcMain.handle('open-system-settings', async (event, type) => {
 
 // Config Handlers
 ipcMain.handle('get-settings', () => {
-  // Return combined config
   return {
     ...appConfig,
-    ...runtimeConfig, // Runtime / Local overrides take precedence for display
+    backendBaseUrl: `http://localhost:${serverPort}`,
+    callbackUrl: webhookUrl,
     isConnected: !!appConfig.accessToken
   };
 });
 
-// Registration Handler
+// Registration Handler (direct SDK call, no HTTP)
 ipcMain.handle('register', async (event, data) => {
   try {
     const { name, apiKey } = data;
+    console.log(`Registering user: ${name}`);
 
-    // 1. Call Python Backend to Register
-    // Use runtime config to find the server
-    const baseUrl = runtimeConfig.backendBaseUrl || 'http://localhost:8000';
-    const registerUrl = `${baseUrl}/api/register`;
-
-    console.log(`Registering user: ${name} at ${registerUrl}`);
-
-    const response = await fetch(registerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, api_key: apiKey })
-    });
-
-    if (!response.ok) {
-      const errJson = await response.json();
-      return { success: false, error: errJson.detail || 'Registration failed' };
+    // 1. Verify API key with VideoDB SDK
+    const valid = await videodbService.verifyApiKey(apiKey);
+    if (!valid) {
+      return { success: false, error: 'Invalid API key. Please check your key and try again.' };
     }
 
-    const result = await response.json();
-    const accessToken = result.access_token;
-    console.log('Registration successful. Token received.');
+    // 2. Create or update user in local DB
+    const existingUser = findUserByApiKey(apiKey);
+    let accessToken;
+    let userName = name || 'Guest';
 
-    // 2. Save User Auth
-    const newConfig = {
-      accessToken: accessToken,
-      userName: result.name
-    };
+    if (existingUser) {
+      accessToken = existingUser.access_token;
+      userName = existingUser.name;
+    } else {
+      accessToken = randomUUID();
+      createUser(userName, apiKey, accessToken);
+    }
 
-    saveUserConfig(newConfig);
+    console.log('Registration successful. Token generated.');
 
-    // 3. Re-initialize SDK config
-    await initializeSDK();
+    // 3. Save user auth config
+    saveUserConfig({ accessToken, userName });
 
-    return { success: true, userName: result.name };
+    // 4. Clear any stale session token cache
+    cachedSessionToken = null;
+    tokenExpiresAt = null;
+
+    return { success: true, userName };
 
   } catch (error) {
     console.error('Registration error:', error);
     return { success: false, error: error.message };
   }
 });
-
-
-
 
 ipcMain.handle('recorder-logout', async () => {
   console.log('Logging out...');
@@ -728,12 +627,15 @@ ipcMain.handle('recorder-logout', async () => {
     // Reset memory state
     appConfig = {
       accessToken: null,
-      backendBaseUrl: null,
-      callbackUrl: null,
       userName: null
     };
     cachedSessionToken = null;
     tokenExpiresAt = null;
+
+    // Clear VideoDB connection cache
+    if (videodbService) {
+      videodbService.clearAll();
+    }
 
     // Cleanup capture client if exists
     if (captureClient) {
@@ -760,7 +662,7 @@ function createCameraWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const bubbleSize = 250; // 10% smaller than 280
+  const bubbleSize = 250;
   const margin = 20;
 
   cameraWindow = new BrowserWindow({
@@ -774,21 +676,18 @@ function createCameraWindow() {
     alwaysOnTop: true,
     hasShadow: false,
     skipTaskbar: true,
-    show: false, // Hidden by default
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     }
   });
 
-  // Don't load camera.html yet - defer until first show
   cameraWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
-// IPC Handlers for Camera
 ipcMain.handle('camera-show', async () => {
   if (cameraWindow && !cameraWindow.isDestroyed()) {
-    // Request camera permission before showing (macOS only)
     if (process.platform === 'darwin') {
       const cameraStatus = systemPreferences.getMediaAccessStatus('camera');
       console.log('[Camera] Current permission status:', cameraStatus);
@@ -798,20 +697,15 @@ ipcMain.handle('camera-show', async () => {
         const granted = await systemPreferences.askForMediaAccess('camera');
         console.log('[Camera] Permission granted:', granted);
         if (!granted) {
-          // Open system settings if permission denied
           shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera');
           return { success: false, error: 'Camera permission denied' };
         }
       }
     }
-    // On Windows, camera permission is handled by the browser when getUserMedia is called
 
-    // Lazy load camera.html on first show
     if (!cameraLoaded) {
       cameraWindow.loadFile(path.join(__dirname, 'camera.html'));
       cameraLoaded = true;
-      // Debug: Open DevTools for camera window (remove in production)
-      // cameraWindow.webContents.openDevTools({ mode: 'detach' });
     }
     cameraWindow.showInactive();
     return { success: true };
@@ -843,7 +737,7 @@ function createHistoryWindow() {
     title: 'Recording History',
     backgroundColor: '#1e1e1e',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'), // Reuse preload for recorderAPI access
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     }
@@ -861,24 +755,20 @@ ipcMain.handle('open-history-window', () => {
   return { success: true };
 });
 
-// History Handler
+// History Handler (direct DB query, no HTTP)
 ipcMain.handle('get-recordings', async () => {
   try {
-    const backendUrl = runtimeConfig.backendBaseUrl || 'http://localhost:8002';
-    // We need to fetch from the local python server.
-    // Using global fetch (Electron 18+)
-    const response = await fetch(`${backendUrl}/api/recordings`, {
-      headers: {
-        'x-access-token': appConfig.accessToken
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch recordings: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data;
+    const recordings = dbGetRecordings(20);
+    return recordings.map(r => ({
+      id: r.id,
+      session_id: r.session_id,
+      stream_url: r.stream_url,
+      player_url: r.player_url,
+      created_at: r.created_at,
+      duration: r.duration,
+      insights_status: r.insights_status,
+      insights: r.insights,
+    }));
   } catch (error) {
     console.error('Failed to get recordings:', error);
     return [];
@@ -903,13 +793,10 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
-
-  // Open DevTools in development
-  // mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(async () => {
-  await initializeSDK();
+  await initializeApp();
   createWindow();
   createCameraWindow();
 });
@@ -935,6 +822,22 @@ async function shutdownApp() {
   } catch (error) {
     console.error('Error during SDK shutdown:', error);
   }
+
+  // Stop tunnel
+  if (tunnelManager) {
+    tunnelManager.stop();
+    console.log('Tunnel stopped');
+  }
+
+  // Stop Express server
+  if (expressServer) {
+    expressServer.close();
+    console.log('Express server stopped');
+  }
+
+  // Close database
+  closeDatabase();
+  console.log('Database closed');
 }
 
 // Handle window close

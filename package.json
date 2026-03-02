@@ -4,13 +4,7 @@
   "description": "A sample Electron application for screen and camera recording using VideoDB Capture SDK",
   "main": "frontend/main.js",
   "scripts": {
-    "setup": "node -e \"require('child_process').execSync(process.platform==='win32'?'scripts\\\\setup.bat':'./scripts/setup.sh',{stdio:'inherit'})\"",
-    "start": "node -e \"require('child_process').execSync(process.platform==='win32'?'scripts\\\\start-server.bat':'./scripts/start-server.sh',{stdio:'inherit'})\"",
-    "setup:win": "scripts\\setup.bat",
-    "setup:unix": "./scripts/setup.sh",
-    "start:win": "scripts\\start-server.bat",
-    "start:unix": "./scripts/start-server.sh",
-    "electron": "electron .",
+    "start": "electron .",
     "dist": "electron-builder",
     "pack": "electron-builder --dir"
   },
@@ -28,8 +22,8 @@
     "files": [
       "frontend/**/*",
       "package.json",
-      "resources/**/*",
-      "node_modules/videodb/**/*"
+      "node_modules/videodb/**/*",
+      "node_modules/sql.js/**/*"
     ],
     "mac": {
       "identity": null,
@@ -38,53 +32,24 @@
         "NSMicrophoneUsageDescription": "Async Recorder needs microphone access to capture audio during sessions.",
         "NSCameraUsageDescription": "Async Recorder needs camera access to capture your webcam during sessions."
       },
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
             "arm64"
           ]
         }
       ]
     },
-    "extraResources": [
-      {
-        "from": "resources/manage-service.sh",
-        "to": "manage-service.sh"
-      },
-      {
-        "from": "resources/service-core",
-        "to": "../MacOS/service-core"
-      },
-      {
-        "from": "resources/libservicebridge.dylib",
-        "to": "../MacOS/libservicebridge.dylib"
-      },
-      {
-        "from": "resources/logs",
-        "to": "logs"
-      }
-    ],
     "asarUnpack": [
       "node_modules/videodb/**/*"
     ]
   },
   "dependencies": {
+    "sql.js": "^1.11.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "sqlite3": "^5.1.7",
     "videodb": "github:video-db/videodb-node#release-0.2.1"
   }
 }
