@@ -117,22 +117,8 @@ class VideoDBService {
     return {
       status: session.status,
       exportedVideoId: session.exportedVideoId || null,
-    };
-  }
-
-  /**
-   * Fetch video details (stream/player URLs) from VideoDB.
-   * @param {string} apiKey
-   * @param {string} videoId
-   * @returns {Promise<{streamUrl: string, playerUrl: string}>}
-   */
-  async getVideo(apiKey, videoId) {
-    const conn = this._getConnection(apiKey);
-    const coll = await conn.getCollection();
-    const video = await coll.getVideo(videoId);
-    return {
-      streamUrl: video.streamUrl,
-      playerUrl: video.playerUrl,
+      streamUrl: session.streamUrl || null,
+      playerUrl: session.playerUrl || null,
     };
   }
 
