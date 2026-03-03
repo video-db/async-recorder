@@ -47,9 +47,7 @@
   },
   "dependencies": {
     "sql.js": "^1.11.0",
-    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.2.1",
     "videodb": "github:video-db/videodb-node#release-0.2.1"
   }
 }

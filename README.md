@@ -1,7 +1,6 @@
 <!-- PROJECT SHIELDS -->
 [![Electron][electron-shield]][electron-url]
 [![Node][node-shield]][node-url]
-[![Python][python-shield]][python-url]
 [![License][license-shield]][license-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
@@ -57,18 +56,16 @@
 ## Prerequisites
 
 - Node.js 16+
-- Python 3.10+ ([download](https://python.org/downloads/))
 - VideoDB API Key ([console.videodb.io](https://console.videodb.io))
 
 ## Quick Start
 
 ```bash
 npm install
-npm run setup    # Enter your VideoDB API key
 npm start
 ```
 
-> **Note**: On first run, close the app and run `npm start` again after setup completes.
+On first launch, enter your name and VideoDB API key in the onboarding screen.
 
 ## Usage
 
@@ -83,36 +80,32 @@ npm start
 - **macOS**: System Settings → Privacy & Security → enable Screen Recording/Microphone/Camera
 - **Windows**: Settings → Privacy → enable Microphone/Camera access
 
-### Backend won't start
-- Delete `server/venv` and run `npm start` again
-- Make sure Python is installed and in PATH
-
 ### Camera not showing
 - Toggle camera off/on in the sidebar
 - Check Camera permission in system settings
 
 ### Reset
 ```bash
-# macOS/Linux
-rm -rf server/venv server/users.db runtime.json
-
-# Windows
-rmdir /s /q server\venv
-del server\users.db runtime.json
+# Delete the app database (stored in Electron userData)
+# macOS
+rm ~/Library/Application\ Support/async-recorder/async-recorder.db
+rm ~/Library/Application\ Support/async-recorder/config.json
 ```
-Then run `npm run setup && npm start`
+Then run `npm start`
 
 ## Project Structure
 
 ```
-├── frontend/        # Electron app (UI)
-│   ├── main.js      # Main process
-│   ├── renderer.js  # UI logic
-│   ├── index.html   # Main window
-│   ├── camera.*     # Camera bubble
-│   └── history.*    # Recording history
-├── server/          # Python backend (FastAPI)
-└── scripts/         # Setup and startup scripts
+├── frontend/
+│   ├── main.js          # Electron main process + IPC handlers
+│   ├── preload.js       # Context bridge (renderer ↔ main)
+│   ├── index.html       # Main window
+│   ├── camera.*         # Camera bubble
+│   ├── history.*        # Recording history
+│   └── server/          # In-process backend
+│       ├── database.js          # SQLite (sql.js)
+│       ├── videodb-service.js   # VideoDB SDK wrapper
+│       └── insights-service.js  # Transcript + subtitle indexing
 ```
 
 ## License
@@ -137,8 +130,6 @@ MIT
 [electron-url]: https://www.electronjs.org/
 [node-shield]: https://img.shields.io/badge/Node.js-16+-339933?style=for-the-badge&logo=node.js&logoColor=white
 [node-url]: https://nodejs.org/
-[python-shield]: https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white
-[python-url]: https://www.python.org/
 [license-shield]: https://img.shields.io/github/license/video-db/async-recorder.svg?style=for-the-badge
 [license-url]: https://github.com/video-db/async-recorder/blob/main/LICENSE
 [stars-shield]: https://img.shields.io/github/stars/video-db/async-recorder.svg?style=for-the-badge

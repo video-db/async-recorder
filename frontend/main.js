@@ -2,15 +2,13 @@ const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('elect
 const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto');
-const net = require('net');
 const { CaptureClient } = require('videodb/capture');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-// --- In-process server modules (replaces Python backend) ---
-const { initDatabase, closeDatabase, findUserByToken, findUserByApiKey, createUser, getRecordings: dbGetRecordings, getRecordingById } = require('./server/database');
+// --- In-process server modules ---
+const { initDatabase, closeDatabase, findUserByToken, findUserByApiKey, createUser, getRecordings: dbGetRecordings, getRecordingById, createRecording, findRecordingBySessionId, updateRecording, getOrphanedRecordings } = require('./server/database');
 const { VideoDBService } = require('./server/videodb-service');
-const { TunnelManager } = require('./server/tunnel');
-const { createServer } = require('./server/index');
+const { indexVideo } = require('./server/insights-service');
 
 let mainWindow;
 let cameraWindow;
@@ -18,13 +16,12 @@ let cameraWindow;
 // CaptureClient instance (created per session)
 let captureClient = null;
 
+// WebSocket connection for real-time events
+let wsConnection = null;
+let wsCloseTimeout = null;
+
 // In-process services
-let db = null;
 let videodbService = null;
-let tunnelManager = null;
-let expressServer = null;
-let serverPort = null;
-let webhookUrl = null;
 
 // Configuration
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
@@ -63,22 +60,6 @@ function saveUserConfig(newConfig) {
     console.error('Error saving user config:', err);
     return false;
   }
-}
-
-/**
- * Find an available port starting from the given port number.
- */
-function findAvailablePort(startPort) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.listen(startPort, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-    server.on('error', () => {
-      resolve(findAvailablePort(startPort + 1));
-    });
-  });
 }
 
 /**
@@ -160,7 +141,7 @@ async function initializeApp() {
   try {
     // 1. Initialize database
     console.log('Initializing database at:', DB_FILE);
-    db = await initDatabase(DB_FILE);
+    await initDatabase(DB_FILE);
 
     // 2. Create VideoDB service
     const apiUrl = process.env.VIDEODB_API_URL || null;
@@ -172,45 +153,117 @@ async function initializeApp() {
     // 4. Auto-register if setup was run
     await autoRegisterFromSetup();
 
-    // 5. Start Express server for webhooks
-    const startPort = parseInt(process.env.API_PORT, 10) || 8000;
-    serverPort = await findAvailablePort(startPort);
-
-    tunnelManager = new TunnelManager();
-    const expressApp = createServer({ database: db, videodbService, tunnelManager });
-    expressServer = expressApp.listen(serverPort, () => {
-      console.log(`Express webhook server listening on port ${serverPort}`);
-    });
-
-    // 6. Start Cloudflare tunnel
-    const envWebhookUrl = process.env.WEBHOOK_URL || null;
-    webhookUrl = await tunnelManager.start(serverPort, envWebhookUrl);
-    if (webhookUrl) {
-      console.log(`Webhook URL: ${webhookUrl}`);
-    } else {
-      console.warn('Tunnel not available - webhooks will not work');
-    }
+    // 5. Sync any orphaned recordings from previous sessions
+    syncOrphanedSessions();
 
     console.log('VideoDB SDK Configuration:');
     console.log('- AUTH_STATUS:', appConfig.accessToken ? 'Connected' : 'Needs Connection');
-    console.log('- SERVER_PORT:', serverPort);
-    console.log('- WEBHOOK_URL:', webhookUrl);
+    console.log('- EVENT_DELIVERY: WebSocket');
     console.log('App ready (CaptureClient will be created per session)');
   } catch (error) {
     console.error('Failed to initialize app:', error);
   }
 }
 
-// Setup event listeners on the CaptureClient instance
-function setupCaptureClientEvents(client) {
-  const events = ['recording:started', 'recording:stopped', 'recording:error', 'upload:progress', 'upload:complete', 'error'];
-  for (const eventName of events) {
-    client.on(eventName, (data) => {
-      console.log(`SDK Event: ${eventName}`, data);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('recorder-event', { event: eventName, data });
+/**
+ * Background indexing task — runs async, updates DB with results.
+ */
+async function processIndexingBackground(recordingId, videoId, apiKey) {
+  try {
+    updateRecording(recordingId, { insights_status: 'processing' });
+    console.log(`[Index] Starting indexing for recording ${recordingId}`);
+
+    const result = await indexVideo(videoId, apiKey);
+
+    if (result) {
+      const updates = { insights_status: 'ready' };
+      if (result.transcript) {
+        updates.insights = JSON.stringify({ transcript: result.transcript });
       }
-    });
+      if (result.subtitleUrl) {
+        updates.stream_url = result.subtitleUrl;
+        const recording = getRecordingById(recordingId);
+        if (recording && recording.player_url && recording.player_url.includes('url=')) {
+          updates.player_url = recording.player_url.replace(/url=[^&]+/, `url=${result.subtitleUrl}`);
+        } else {
+          updates.player_url = result.subtitleUrl;
+        }
+      }
+      updateRecording(recordingId, updates);
+      console.log(`[Index] Indexed video ${videoId} successfully`);
+    } else {
+      updateRecording(recordingId, { insights_status: 'failed' });
+      console.warn(`[Index] Failed to index video ${videoId}`);
+    }
+  } catch (err) {
+    console.error(`[Index] Error processing:`, err);
+    try {
+      updateRecording(recordingId, { insights_status: 'failed' });
+    } catch (e) {
+      // Ignore DB errors during error handling
+    }
+  }
+}
+
+/**
+ * Poll a capture session's status and sync to local DB if exported.
+ * Used as fallback when WebSocket misses the exported event.
+ */
+async function syncCaptureSession(sessionId, apiKey, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const session = await videodbService.getCaptureSession(apiKey, sessionId);
+      console.log(`[Sync] Session ${sessionId}: ${session.status}`);
+
+      // Session is complete once exportedVideoId is present (status may be 'stopped' or 'exported')
+      if (session.exportedVideoId) {
+        const video = await videodbService.getVideo(apiKey, session.exportedVideoId);
+        const recording = findRecordingBySessionId(sessionId);
+        if (recording) {
+          updateRecording(recording.id, {
+            video_id: session.exportedVideoId,
+            stream_url: video.streamUrl,
+            player_url: video.playerUrl,
+            insights_status: 'pending',
+          });
+          processIndexingBackground(recording.id, session.exportedVideoId, apiKey);
+        }
+        return;
+      }
+
+      if (session.status === 'failed') {
+        const recording = findRecordingBySessionId(sessionId);
+        if (recording) updateRecording(recording.id, { insights_status: 'failed' });
+        return;
+      }
+
+      // Still in progress — wait and retry
+      if (i < retries - 1) {
+        const delay = [10000, 30000, 60000][i] || 60000;
+        console.log(`[Sync] Session still ${session.status}, retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } catch (err) {
+      console.error(`[Sync] Error polling session ${sessionId}:`, err.message);
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 10000));
+    }
+  }
+  console.warn(`[Sync] Gave up polling session ${sessionId}`);
+}
+
+/**
+ * On app startup, check for recordings that started but never got an export event.
+ */
+async function syncOrphanedSessions() {
+  const apiKey = getCurrentUserApiKey();
+  if (!apiKey) return;
+
+  const orphaned = getOrphanedRecordings();
+  if (orphaned.length === 0) return;
+
+  console.log(`[Sync] Found ${orphaned.length} orphaned recording(s), syncing...`);
+  for (const rec of orphaned) {
+    await syncCaptureSession(rec.session_id, apiKey, 1);
   }
 }
 
@@ -260,14 +313,24 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
       return { success: false, error: 'User not found. Please register first.' };
     }
 
-    // 1. Create capture session directly via VideoDB SDK
+    // 1a. Connect WebSocket for real-time events
+    console.log('[WS] Connecting WebSocket...');
+    try {
+      wsConnection = await videodbService.connectWebsocket(user.api_key);
+      console.log(`[WS] WebSocket connected, connectionId: ${wsConnection.connectionId}`);
+    } catch (err) {
+      console.error('[WS] WebSocket connection failed:', err.message);
+      wsConnection = null;
+      return { success: false, error: 'WebSocket connection failed: ' + err.message };
+    }
+
+    // 1b. Create capture session directly via VideoDB SDK
     console.log('Creating capture session via SDK...');
     let captureSessionId;
     try {
-      const callbackUrl = webhookUrl || null;
       const sessionData = await videodbService.createCaptureSession(user.api_key, {
         endUserId: `user-${user.id}`,
-        callbackUrl,
+        wsConnectionId: wsConnection.connectionId,
         metadata: { clientSessionId, startedAt: Date.now() },
       });
       captureSessionId = sessionData.sessionId;
@@ -276,6 +339,66 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
       console.error('Error creating capture session:', err);
       return { success: false, error: 'Failed to create capture session: ' + err.message };
     }
+
+    // 1c. Save session_id to DB immediately with local timestamp (so we can recover if WS drops)
+    createRecording({ session_id: captureSessionId, created_at: new Date().toISOString(), insights_status: 'recording' });
+
+    // 1d. Start background WebSocket event listener
+    const ws = wsConnection;
+    const wsSessionId = captureSessionId;
+    const wsApiKey = user.api_key;
+    (async () => {
+      let receivedTerminalEvent = false;
+      try {
+        console.log('[WS] Listening for capture session events...');
+        for await (const msg of ws.receive()) {
+          const channel = msg.channel || msg.type || 'unknown';
+          const status = msg.data?.status || msg.status || '';
+          console.log(`[WS] ${channel}: ${status}`);
+
+          // Handle video data — may arrive with 'exported' or 'stopped' status
+          if (channel === 'capture_session') {
+            const data = msg.data || {};
+            const videoId = data.exported_video_id;
+            const streamUrl = data.stream_url;
+            const playerUrl = data.player_url;
+            const sessionId = msg.capture_session_id;
+
+            if (videoId) {
+              const recording = findRecordingBySessionId(sessionId);
+              if (recording) {
+                updateRecording(recording.id, {
+                  video_id: videoId,
+                  stream_url: streamUrl,
+                  player_url: playerUrl,
+                  insights_status: 'pending',
+                });
+                console.log(`[WS] Updated recording: ${videoId}`);
+                processIndexingBackground(recording.id, videoId, wsApiKey);
+              }
+            }
+          }
+
+          // Auto-close after terminal events (stopped = complete, exported = legacy, failed = error)
+          if (channel === 'capture_session' && (status === 'stopped' || status === 'exported' || status === 'failed')) {
+            receivedTerminalEvent = true;
+            if (wsCloseTimeout) { clearTimeout(wsCloseTimeout); wsCloseTimeout = null; }
+            console.log(`[WS] Terminal event (${status}), closing WebSocket...`);
+            await ws.close();
+            if (wsConnection === ws) wsConnection = null;
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('[WS] Listener error:', err.message);
+      }
+
+      // Fallback: if WS dropped without terminal event, poll the session
+      if (!receivedTerminalEvent) {
+        console.log('[WS] Disconnected without terminal event, falling back to polling...');
+        await syncCaptureSession(wsSessionId, wsApiKey);
+      }
+    })();
 
     // 2. Get session token (from cache or generate new one)
     const sessionToken = await getSessionToken();
@@ -292,7 +415,6 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
     console.log('Creating CaptureClient', captureOptions);
 
     captureClient = new CaptureClient(captureOptions);
-    setupCaptureClientEvents(captureClient);
 
     // 4. List available channels
     console.log('Listing available channels...');
@@ -360,51 +482,56 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
   }
 });
 
-// Check Tunnel Status Handler (direct, no HTTP)
-ipcMain.handle('check-tunnel-status', async () => {
-  return {
-    active: tunnelManager ? tunnelManager.isRunning() : false,
-    webhook_url: tunnelManager ? tunnelManager.getWebhookUrl() : null,
-    provider: 'cloudflare',
-  };
-});
-
 // Open External Link
 ipcMain.handle('open-external-link', async (event, url) => {
   await shell.openExternal(url);
 });
 
 ipcMain.handle('recorder-stop-recording', async (event, sessionId) => {
-  try {
-    console.log(`Stopping recording for session: ${sessionId}`);
+  console.log(`Stopping recording for session: ${sessionId}`);
 
-    if (captureClient) {
-      await captureClient.stopSession();
-      console.log('Capture session stopped');
-
-      try {
-        await captureClient.shutdown();
-        console.log('CaptureClient shutdown complete');
-      } catch (shutdownErr) {
-        console.warn('CaptureClient shutdown warning:', shutdownErr.message);
-      }
-      captureClient = null;
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('recorder-event', {
-          event: 'recording:stopped',
-          data: { sessionId }
-        });
-      }
-    } else {
-      console.warn('No active capture client to stop');
-    }
-
+  if (!captureClient) {
+    console.warn('No active capture client to stop');
     return { success: true };
-  } catch (error) {
-    console.error('Error stopping recording:', error);
-    return { success: false, error: error.message };
   }
+
+  // Stop + shutdown are best-effort — the binary may already be gone.
+  // WebSocket stays open regardless, so exported events still arrive.
+  try {
+    await captureClient.stopSession();
+    console.log('Capture session stopped');
+  } catch (stopErr) {
+    console.warn('CaptureClient stop warning:', stopErr.message);
+  }
+
+  try {
+    await captureClient.shutdown();
+    console.log('CaptureClient shutdown complete');
+  } catch (shutdownErr) {
+    console.warn('CaptureClient shutdown warning:', shutdownErr.message);
+  }
+  captureClient = null;
+
+  // Start timeout: if WS doesn't receive exported/failed within 2 min, force-close
+  // so the listener falls through to polling fallback.
+  if (wsConnection && !wsCloseTimeout) {
+    const ws = wsConnection;
+    wsCloseTimeout = setTimeout(async () => {
+      console.log('[WS] Timeout waiting for terminal event, closing...');
+      try { await ws.close(); } catch (e) { /* ignore */ }
+      if (wsConnection === ws) wsConnection = null;
+      wsCloseTimeout = null;
+    }, 120_000);
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recorder-event', {
+      event: 'recording:stopped',
+      data: { sessionId }
+    });
+  }
+
+  return { success: true };
 });
 
 ipcMain.handle('recorder-pause-tracks', async (event, sessionId, tracks) => {
@@ -568,8 +695,6 @@ ipcMain.handle('open-system-settings', async (event, type) => {
 ipcMain.handle('get-settings', () => {
   return {
     ...appConfig,
-    backendBaseUrl: `http://localhost:${serverPort}`,
-    callbackUrl: webhookUrl,
     isConnected: !!appConfig.accessToken
   };
 });
@@ -765,7 +890,6 @@ ipcMain.handle('get-recordings', async () => {
       stream_url: r.stream_url,
       player_url: r.player_url,
       created_at: r.created_at,
-      duration: r.duration,
       insights_status: r.insights_status,
       insights: r.insights,
     }));
@@ -823,16 +947,18 @@ async function shutdownApp() {
     console.error('Error during SDK shutdown:', error);
   }
 
-  // Stop tunnel
-  if (tunnelManager) {
-    tunnelManager.stop();
-    console.log('Tunnel stopped');
-  }
+  // Clear any pending WS timeout
+  if (wsCloseTimeout) { clearTimeout(wsCloseTimeout); wsCloseTimeout = null; }
 
-  // Stop Express server
-  if (expressServer) {
-    expressServer.close();
-    console.log('Express server stopped');
+  // Close WebSocket
+  if (wsConnection) {
+    try {
+      await wsConnection.close();
+      console.log('[WS] WebSocket closed');
+    } catch (e) {
+      // ignore
+    }
+    wsConnection = null;
   }
 
   // Close database

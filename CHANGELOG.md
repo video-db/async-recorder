@@ -2,16 +2,20 @@
 
 ## [1.5.1] - 2025-02-24
 
-- Updated VideoDB Node SDK to v0.2.1 (from v0.2.0)
-- Migrated to standalone repository (previously part of videodb-capture-quickstart)
-- Updated contributing docs and references
-- Added .gitignore
+- Removed Python backend — all server logic now runs inside Electron (Node.js)
+- Replaced Express webhook + Cloudflare tunnel with WebSocket for capture events
+- Removed `express`, `cors` dependencies (50 fewer packages)
+- Added resilience: polling fallback if WebSocket misses events, orphan session sync on startup
+- Updated VideoDB Node SDK to v0.2.1
+- Simplified startup to single `npm start` command
+- Added DMG build support for macOS
+- Migrated to standalone repository
 
 ## [1.5.0] - 2025-02-18
 
 - Updated to VideoDB SDK v0.2.0 (npm) and v0.4.0 (Python)
 - Added Windows support
-- Bug Fixes
+- Bug fixes
 
 ## [1.0.0] - 2025-02-05
 
@@ -21,4 +25,4 @@ Initial public release.
 - Draggable camera bubble overlay
 - Recording history with in-app playback
 - Auto-indexing for searchable recordings
-- Zero-config webhook tunneling via Cloudflare
+- Real-time event delivery via WebSocket

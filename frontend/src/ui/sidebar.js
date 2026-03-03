@@ -1,5 +1,5 @@
 /**
- * Sidebar Logic: Permissions, Session Control, Stream Toggles, Settings
+ * Sidebar Logic: Session Control, Stream Toggles, Profile
  */
 import { addLog } from '../utils/logger.js';
 
@@ -19,17 +19,6 @@ const elements = {
     statusText: document.getElementById('statusText'),
     healthDot: document.getElementById('healthDot'),
 
-    // Permission Indicators - Deprecated/Removed from UI
-
-    // Settings & Profile (Same IDs as before)
-    settingsBtns: document.querySelectorAll('.btn-settings'),
-    // Modals
-    settingsModal: document.getElementById('settingsModal'),
-    closeSettingsBtn: document.getElementById('closeSettingsBtn'),
-    saveSettingsBtn: document.getElementById('saveSettingsBtn'),
-    // Inputs
-    backendUrl: document.getElementById('settings-backend-url'),
-    callbackUrl: document.getElementById('settings-callback-url'),
     // Profile
     profileContainer: document.getElementById('userProfileContainer'),
     profileMenu: document.getElementById('profileMenu'),
@@ -233,19 +222,7 @@ function resetToggles() {
 // --- Settings & Profile (Copied/Adapted from config.js) ---
 
 function initSettingsLogic() {
-    elements.settingsBtns.forEach(btn => {
-        btn.addEventListener('click', openSettingsModal);
-    });
-    if (elements.closeSettingsBtn) elements.closeSettingsBtn.addEventListener('click', closeSettingsModal);
-    if (elements.saveSettingsBtn) elements.saveSettingsBtn.addEventListener('click', saveSettings);
-
-    if (elements.settingsModal) {
-        elements.settingsModal.addEventListener('click', (e) => {
-            if (e.target === elements.settingsModal) closeSettingsModal();
-        });
-    }
-
-    // History Button Listener (Moved here)
+    // History Button Listener
     const historyBtn = document.getElementById('historyBtn');
     if (historyBtn) {
         historyBtn.addEventListener('click', () => {
@@ -258,49 +235,9 @@ function initSettingsLogic() {
     }
 }
 
-function openSettingsModal() {
-    // Close history modal if open (legacy cleanup)
-    const historyModal = document.getElementById('historyModal');
-    if (historyModal) historyModal.classList.remove('visible');
-
-    if (elements.settingsModal) elements.settingsModal.classList.add('visible');
-    loadConfigToUI();
-}
-
-function closeSettingsModal() {
-    if (elements.settingsModal) elements.settingsModal.classList.remove('visible');
-}
-
-async function saveSettings() {
-    const btn = elements.saveSettingsBtn;
-    if (btn) {
-        btn.textContent = 'Saving...';
-        btn.disabled = true;
-    }
-
-    try {
-        const newConfig = {
-            backendBaseUrl: elements.backendUrl.value,
-            callbackUrl: elements.callbackUrl.value
-        };
-        await window.configAPI.updateConfig(newConfig);
-        addLog('✅ Settings saved', 'success');
-        closeSettingsModal();
-    } catch (error) {
-        addLog(`❌ Failed to save settings: ${error.message}`, 'error');
-    } finally {
-        if (btn) {
-            btn.textContent = 'Save Changes';
-            btn.disabled = false;
-        }
-    }
-}
-
 async function loadConfigToUI() {
     try {
         const config = await window.configAPI.getConfig();
-        if (elements.backendUrl) elements.backendUrl.value = config.backendBaseUrl || '';
-        if (elements.callbackUrl) elements.callbackUrl.value = config.callbackUrl || '';
 
         // Update Profile Name
         let displayName = "VideoDB User";

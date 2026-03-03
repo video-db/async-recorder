@@ -2,7 +2,6 @@
 
 const initSqlJs = require('sql.js');
 const fs = require('fs');
-const path = require('path');
 
 let db = null;
 let dbPath = null;
@@ -79,13 +78,6 @@ function closeDatabase() {
   }
 }
 
-/**
- * Get the raw database instance.
- */
-function getDatabase() {
-  return db;
-}
-
 // --- Helpers ---
 
 /**
@@ -124,10 +116,6 @@ function findUserByToken(accessToken) {
   return getOne('SELECT * FROM users WHERE access_token = ?', [accessToken]);
 }
 
-function findUserById(id) {
-  return getOne('SELECT * FROM users WHERE id = ?', [id]);
-}
-
 function createUser(name, apiKey, accessToken) {
   db.run('INSERT INTO users (name, api_key, access_token) VALUES (?, ?, ?)', [name, apiKey, accessToken]);
   const row = getOne('SELECT last_insert_rowid() as id');
@@ -139,22 +127,18 @@ function findUserByApiKey(apiKey) {
   return getOne('SELECT * FROM users WHERE api_key = ?', [apiKey]);
 }
 
-function getLatestUser() {
-  return getOne('SELECT * FROM users ORDER BY id DESC LIMIT 1');
-}
-
 // --- Recording queries ---
 
 function createRecording(data) {
   db.run(
-    `INSERT INTO recordings (video_id, stream_url, player_url, session_id, duration, insights, insights_status)
+    `INSERT INTO recordings (video_id, stream_url, player_url, session_id, created_at, insights, insights_status)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       data.video_id || null,
       data.stream_url || null,
       data.player_url || null,
       data.session_id || null,
-      data.duration || null,
+      data.created_at || new Date().toISOString(),
       data.insights || null,
       data.insights_status || 'pending',
     ]
@@ -166,10 +150,6 @@ function createRecording(data) {
 
 function findRecordingBySessionId(sessionId) {
   return getOne('SELECT * FROM recordings WHERE session_id = ?', [sessionId]);
-}
-
-function findRecordingByVideoId(videoId) {
-  return getOne('SELECT * FROM recordings WHERE video_id = ?', [videoId]);
 }
 
 function updateRecording(id, data) {
@@ -195,20 +175,20 @@ function getRecordingById(id) {
   return getOne('SELECT * FROM recordings WHERE id = ?', [id]);
 }
 
+function getOrphanedRecordings() {
+  return getAll('SELECT * FROM recordings WHERE session_id IS NOT NULL AND video_id IS NULL');
+}
+
 module.exports = {
   initDatabase,
   closeDatabase,
-  getDatabase,
-  saveToFile,
   findUserByToken,
-  findUserById,
   findUserByApiKey,
-  getLatestUser,
   createUser,
   createRecording,
   findRecordingBySessionId,
-  findRecordingByVideoId,
   updateRecording,
   getRecordings,
   getRecordingById,
+  getOrphanedRecordings,
 };

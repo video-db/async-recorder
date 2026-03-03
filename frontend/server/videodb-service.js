@@ -67,19 +67,32 @@ class VideoDBService {
   }
 
   /**
+   * Connect a WebSocket for real-time event streaming.
+   * @param {string} apiKey
+   * @param {string} [collectionId='default']
+   * @returns {Promise<import('videodb').WebSocketConnection>}
+   */
+  async connectWebsocket(apiKey, collectionId = 'default') {
+    const conn = this._getConnection(apiKey);
+    const ws = await conn.connectWebsocket(collectionId);
+    await ws.connect();
+    return ws;
+  }
+
+  /**
    * Create a capture session on VideoDB.
    * @param {string} apiKey
    * @param {object} options
    * @param {string} options.endUserId
-   * @param {string} [options.callbackUrl]
+   * @param {string} options.wsConnectionId
    * @param {object} [options.metadata]
-   * @returns {Promise<{sessionId: string, collectionId: string, endUserId: string, status: string, callbackUrl: string}>}
+   * @returns {Promise<{sessionId: string, collectionId: string, endUserId: string, status: string}>}
    */
-  async createCaptureSession(apiKey, { endUserId, callbackUrl, metadata }) {
+  async createCaptureSession(apiKey, { endUserId, wsConnectionId, metadata }) {
     const conn = this._getConnection(apiKey);
     const session = await conn.createCaptureSession({
       endUserId,
-      callbackUrl,
+      wsConnectionId,
       metadata,
     });
     return {
@@ -87,19 +100,44 @@ class VideoDBService {
       collectionId: session.collectionId,
       endUserId: session.endUserId,
       status: session.status,
-      callbackUrl: callbackUrl || null,
     };
   }
 
   /**
-   * Clear a cached connection (e.g. on logout).
+   * Fetch a capture session's current status from VideoDB.
+   * Used as fallback when WebSocket misses events.
+   * @param {string} apiKey
+   * @param {string} sessionId - Capture session ID (cap-xxx)
+   * @returns {Promise<{status: string, exportedVideoId: string|null}>}
    */
-  clearConnection(apiKey) {
-    this._connections.delete(apiKey);
+  async getCaptureSession(apiKey, sessionId) {
+    const conn = this._getConnection(apiKey);
+    const coll = await conn.getCollection();
+    const session = await coll.getCaptureSession(sessionId);
+    return {
+      status: session.status,
+      exportedVideoId: session.exportedVideoId || null,
+    };
   }
 
   /**
-   * Clear all cached connections.
+   * Fetch video details (stream/player URLs) from VideoDB.
+   * @param {string} apiKey
+   * @param {string} videoId
+   * @returns {Promise<{streamUrl: string, playerUrl: string}>}
+   */
+  async getVideo(apiKey, videoId) {
+    const conn = this._getConnection(apiKey);
+    const coll = await conn.getCollection();
+    const video = await coll.getVideo(videoId);
+    return {
+      streamUrl: video.streamUrl,
+      playerUrl: video.playerUrl,
+    };
+  }
+
+  /**
+   * Clear all cached connections (e.g. on logout).
    */
   clearAll() {
     this._connections.clear();

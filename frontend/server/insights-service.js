@@ -19,7 +19,7 @@ const SUBTITLE_STYLE = {
 
 /**
  * Index a video: generate spoken-word index, transcript, and subtitles.
- * Runs as a background task after webhook receipt.
+ * Runs as a background task after capture session export.
  *
  * @param {string} videoId - VideoDB video ID (m-xxx)
  * @param {string} apiKey - User's VideoDB API key

@@ -140,7 +140,6 @@ function createHistoryListItem(recording) {
     div.className = "history-item";
     div.dataset.id = recording.id;
 
-    const timeDisplay = recording.duration ? formatDuration(recording.duration) : "Unknown Duration";
     // Parse Date for display
     const dateObj = recording.created_at ? new Date(recording.created_at) : null;
     const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -149,7 +148,6 @@ function createHistoryListItem(recording) {
 
     // Status Badge
     let statusBadge = '';
-    // Simplify logic for demo
     if (recording.insights_status === 'ready') {
         statusBadge = '<span class="material-icons" style="font-size:14px; color:#4CAF50;">check_circle</span>';
     } else {
@@ -160,9 +158,7 @@ function createHistoryListItem(recording) {
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <div style="flex:1;">
              <div style="font-size:13px; font-weight:500; color:#fff; margin-bottom:4px;">${title}</div>
-             <div style="font-size:11px; color:#888;">
-                <span style="color:#ccc;">${timeStr}</span> • ${timeDisplay}
-             </div>
+             <div style="font-size:11px; color:#888;">${timeStr}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center;">
             ${statusBadge}
@@ -296,12 +292,6 @@ function updateActiveItemStyle() {
             item.classList.remove("active");
         }
     });
-}
-
-function formatDuration(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Start

@@ -25,9 +25,6 @@ contextBridge.exposeInMainWorld('recorderAPI', {
 contextBridge.exposeInMainWorld('configAPI', {
     getConfig: () => ipcRenderer.invoke('get-settings'),
     register: (data) => ipcRenderer.invoke('register', data),
-    saveConfig: (settings) => ipcRenderer.invoke('save-config', settings),
-    updateConfig: (config) => ipcRenderer.invoke('config-update', config),
     logout: () => ipcRenderer.invoke('recorder-logout'),
-    openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
-    checkTunnelStatus: () => ipcRenderer.invoke('check-tunnel-status')
+    openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url)
 });
