@@ -73,10 +73,10 @@ export function setSessionActive(sessionId) {
     // Status Indicator
     if (elements.statusText) {
         elements.statusText.textContent = ' Recording';
-        elements.statusText.style.color = '#f44336';
+        elements.statusText.style.color = 'var(--error)';
     }
     if (elements.healthDot) {
-        elements.healthDot.style.background = '#f44336';
+        elements.healthDot.style.background = 'var(--error)';
         elements.healthDot.style.animation = 'pulse 1s infinite';
     }
 
@@ -93,10 +93,10 @@ export function setSessionLoading() {
     }
     if (elements.statusText) {
         elements.statusText.textContent = 'Starting...';
-        elements.statusText.style.color = '#f0ad4e';
+        elements.statusText.style.color = 'var(--warning)';
     }
     if (elements.healthDot) {
-        elements.healthDot.style.background = '#f0ad4e';
+        elements.healthDot.style.background = 'var(--warning)';
     }
 }
 
@@ -116,10 +116,10 @@ export function resetSessionUI() {
     // Status Indicator
     if (elements.statusText) {
         elements.statusText.textContent = 'Ready';
-        elements.statusText.style.color = '#ccc';
+        elements.statusText.style.color = 'var(--text-secondary)';
     }
     if (elements.healthDot) {
-        elements.healthDot.style.background = '#4CAF50';
+        elements.healthDot.style.background = 'var(--success)';
         elements.healthDot.style.animation = 'none';
     }
 

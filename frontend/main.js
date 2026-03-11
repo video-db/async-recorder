@@ -304,6 +304,7 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
 
     const user = getCurrentUser();
     if (!user) {
+      console.error('User not found in DB for token:', appConfig.accessToken?.substring(0, 8) + '...');
       return { success: false, error: 'User not found. Please register first.' };
     }
 

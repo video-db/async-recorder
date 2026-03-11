@@ -13,6 +13,9 @@ function getTimestamp() {
  * @param {string} type - 'info', 'error', 'success', 'api'
  */
 export function addLog(message, type = 'info') {
+    // Always log to console regardless of DOM state
+    console.log(`[${type.toUpperCase()}] ${message}`);
+
     const logsDiv = document.getElementById('logs');
     if (!logsDiv) return;
 
@@ -23,7 +26,4 @@ export function addLog(message, type = 'info') {
 
     // Auto-scroll
     logsDiv.parentElement.scrollTop = logsDiv.parentElement.scrollHeight;
-
-    // Also log to console
-    console.log(`[${type.toUpperCase()}] ${message}`);
 }

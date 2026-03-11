@@ -37,21 +37,14 @@
 
 ## Features
 
-- Screen + microphone + system audio capture
+- Screen + microphone + system audio capture via [VideoDB Capture SDK](https://docs.videodb.io)
 - Draggable camera bubble overlay
-- In-app video playback
-- Recording history with search
-- Auto-indexing for searchable recordings
-
-## Screenshots
-
-| Main Window | Recording |
-|-------------|-----------|
-| ![Main](screenshots/main.png) | ![Recording](screenshots/recording.png) |
-
-| Camera Bubble | History |
-|---------------|---------|
-| ![Camera](screenshots/camera.png) | ![History](screenshots/history.png) |
+- Real-time session events via WebSocket
+- Recording history with pipeline status tracking (Recording → Processing → Transcription → Ready)
+- Editable recording names
+- Auto-indexing with transcript generation and subtitles
+- On-demand share link generation
+- In-app video playback (HLS)
 
 ## Prerequisites
 
@@ -65,23 +58,69 @@ npm install
 npm start
 ```
 
-On first launch, enter your name and VideoDB API key in the onboarding screen.
+On first launch, grant microphone and screen recording permissions, then enter your name and VideoDB API key.
 
 ## Usage
 
-1. **Connect**: Enter your name and API key on first launch
-2. **Record**: Click "Start Recording" - grant permissions when prompted
-3. **Camera**: Toggle the camera bubble from the sidebar
-4. **Review**: Click the history icon to view past recordings
+1. **Connect** — Enter your name and API key on first launch
+2. **Record** — Click "Start Recording" to capture screen, mic, and system audio
+3. **Camera** — Toggle the camera bubble overlay from source controls
+4. **Review** — Click the history icon to browse past recordings, view transcripts, and share links
+5. **Share** — Click "Share" on any recording to generate a fresh link via the VideoDB API
+
+## Architecture
+
+```
+Electron Main Process
+├── VideoDB Node SDK (videodb ^0.2.2)
+│   ├── CaptureClient (local capture via native binary)
+│   ├── WebSocket (real-time session events)
+│   └── Connection (API: sessions, tokens, video ops)
+├── SQLite (sql.js, pure JS — users + recordings)
+└── IPC Handlers (bridge to renderer)
+```
+
+**Event flow:** The app connects a WebSocket before each recording session. When recording stops, the server-side export triggers a `capture_session` event over WebSocket with the video ID, stream URL, and player URL. A polling fallback syncs any missed events on app restart.
+
+**Post-recording:** Once a video is exported, the app automatically indexes spoken words, generates a transcript, and creates a subtitled stream — all via the VideoDB SDK.
+
+## Project Structure
+
+```
+├── frontend/
+│   ├── main.js          # Electron main process + IPC handlers
+│   ├── preload.js       # Context bridge (renderer ↔ main)
+│   ├── index.html       # Main window (recorder controls)
+│   ├── renderer.js      # Main window renderer
+│   ├── camera.*         # Camera bubble overlay
+│   ├── history.*        # Recording history window
+│   ├── src/
+│   │   ├── ui/          # Onboarding, permissions, sidebar
+│   │   └── utils/       # Logger, permission helpers
+│   └── server/          # In-process backend modules
+│       ├── database.js          # SQLite via sql.js
+│       ├── videodb-service.js   # VideoDB SDK wrapper
+│       └── insights-service.js  # Transcript + subtitle indexing
+├── package.json
+└── .env                 # Optional: VIDEODB_API_URL override
+```
+
+## Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VIDEODB_API_URL` | Override the VideoDB API base URL (for dev/staging) | Production API |
+
+Set in a `.env` file at the project root, or as an environment variable.
 
 ## Troubleshooting
 
 ### Permissions denied
-- **macOS**: System Settings → Privacy & Security → enable Screen Recording/Microphone/Camera
-- **Windows**: Settings → Privacy → enable Microphone/Camera access
+- **macOS**: System Settings → Privacy & Security → enable Screen Recording / Microphone / Camera
+- **Windows**: Settings → Privacy → enable Microphone / Camera access
 
 ### Camera not showing
-- Toggle camera off/on in the sidebar
+- Toggle camera off/on in source controls
 - Check Camera permission in system settings
 
 ### Reset
@@ -93,19 +132,14 @@ rm ~/Library/Application\ Support/async-recorder/config.json
 ```
 Then run `npm start`
 
-## Project Structure
+## Building
 
-```
-├── frontend/
-│   ├── main.js          # Electron main process + IPC handlers
-│   ├── preload.js       # Context bridge (renderer ↔ main)
-│   ├── index.html       # Main window
-│   ├── camera.*         # Camera bubble
-│   ├── history.*        # Recording history
-│   └── server/          # In-process backend
-│       ├── database.js          # SQLite (sql.js)
-│       ├── videodb-service.js   # VideoDB SDK wrapper
-│       └── insights-service.js  # Transcript + subtitle indexing
+```bash
+# Build directory (for testing)
+npm run pack
+
+# Build DMG installer (macOS arm64)
+npm run dist
 ```
 
 ## License
