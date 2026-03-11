@@ -4,77 +4,319 @@
 <head>
     <meta charset="UTF-8">
     <title>Recording History</title>
-    <!-- Reusing main CSS or should I extract shared styles? For now, linking same CSS but will need to ensure it works isolated -->
-    <!-- Creating a minimal CSS or linking index.css might be risky if index.css has body styles for the widget -->
     <style>
+        :root {
+            --bg-primary: #141416;
+            --bg-secondary: #1c1c1f;
+            --bg-surface: #232327;
+            --bg-hover: #2a2a2f;
+            --border: #2a2a2e;
+            --border-light: #333338;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+            --radius: 8px;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
             padding: 0;
-            background: #1e1e1e;
-            color: #f0f0f0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
-        /* Essential styles extracted/adapted */
+        /* Nav */
         .history-nav {
-            padding: 15px 20px;
-            background: #252526;
-            border-bottom: 1px solid #333;
+            padding: 14px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 12px;
             -webkit-app-region: drag;
         }
 
         .history-nav h2 {
             margin: 0;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
         }
 
+        .nav-btn {
+            -webkit-app-region: no-drag;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        /* Layout */
         .history-content {
             flex: 1;
             display: flex;
             overflow: hidden;
         }
 
+        /* Sidebar */
         .history-sidebar {
-            width: 300px;
-            background: #252526;
-            border-right: 1px solid #333;
+            width: 280px;
+            min-width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
         }
 
         .history-list-header {
-            padding: 15px;
-            font-size: 12px;
+            padding: 14px 16px;
+            font-size: 11px;
             font-weight: 600;
-            color: #888;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid #333;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
         }
 
         #historyListContainer {
             flex: 1;
             overflow-y: auto;
-            padding: 10px;
+            padding: 8px;
         }
 
+        .history-group-header {
+            padding: 10px 8px 4px;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: background 0.15s;
+            border: 1px solid transparent;
+        }
+
+        .history-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .history-item.active {
+            background: var(--bg-surface);
+            border-color: var(--border-light);
+        }
+
+        .history-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .history-item-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-recording .status-dot { background: var(--error); animation: pulse 1.5s ease-in-out infinite; }
+        .status-recording { color: var(--error); background: rgba(239, 68, 68, 0.1); }
+
+        .status-pending .status-dot { background: var(--warning); animation: pulse 2s ease-in-out infinite; }
+        .status-pending { color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+
+        .status-processing .status-dot { background: var(--info); animation: pulse 2s ease-in-out infinite; }
+        .status-processing { color: var(--info); background: rgba(59, 130, 246, 0.1); }
+
+        .status-ready .status-dot { background: var(--success); }
+        .status-ready { color: var(--success); background: rgba(34, 197, 94, 0.08); }
+
+        .status-failed .status-dot { background: var(--error); }
+        .status-failed { color: var(--error); background: rgba(239, 68, 68, 0.1); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+
+        /* Main area */
         .history-main {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: #1e1e1e;
+            background: var(--bg-primary);
         }
 
+        /* Video header */
+        .video-header {
+            padding: 14px 20px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .video-title-group {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .video-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .edit-name-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 3px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s;
+        }
+
+        .video-title-row:hover .edit-name-btn {
+            opacity: 1;
+        }
+
+        .edit-name-btn:hover {
+            color: var(--accent);
+        }
+
+        .video-title-input {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 4px 8px;
+            outline: none;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .share-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+            white-space: nowrap;
+        }
+
+        .share-btn:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .share-btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .share-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+
+        .spinner-small {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.25);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Player */
         .history-player-container {
             flex: 1;
             background: #000;
@@ -90,66 +332,85 @@
             max-height: 100%;
         }
 
-        .history-info-tabs {
-            height: 250px;
-            background: #252526;
-            border-top: 1px solid #333;
+        /* Transcript panel */
+        .transcript-panel {
+            height: 220px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
             display: flex;
             flex-direction: column;
         }
 
-        .tabs-header {
-            display: flex;
-            border-bottom: 1px solid #333;
-        }
-
-        .history-tab-btn {
+        .transcript-header {
             padding: 10px 20px;
-            background: none;
-            border: none;
-            color: #888;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-bottom: 1px solid var(--border);
         }
 
-        .history-tab-btn.active {
-            color: #4CAF50;
-            border-bottom-color: #4CAF50;
-        }
-
-        .tab-body {
+        .transcript-body {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
-        }
-
-        .history-item {
-            background: #1e1e1e;
-            padding: 12px;
-            margin-bottom: 8px;
-            border-radius: 6px;
-            border: 1px solid #333;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .history-item:hover {
-            border-color: #4CAF50;
-        }
-
-        .history-item.active {
-            border-color: #4CAF50;
-            background: #2d2d2d;
+            padding: 16px 20px;
         }
 
         .empty-state {
             text-align: center;
-            color: #666;
+            color: var(--text-muted);
             padding: 20px;
             font-size: 13px;
         }
 
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(40px);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: var(--radius);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-light);
+            opacity: 0;
+            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3a3a3f;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a4a4f;
+        }
+
+        /* Material Icons */
         .material-icons {
             font-family: 'Material Icons';
             font-weight: normal;
@@ -164,110 +425,7 @@
             direction: ltr;
         }
 
-        /* Basic scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #1e1e1e;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #444;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        /* Video Header */
-        .video-header {
-            padding: 15px 20px;
-            background: #1e1e1e;
-            border-bottom: 1px solid #333;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .video-title-group {
-            flex: 1;
-        }
-
-        .video-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: #fff;
-        }
-
-        .video-meta-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            color: #888;
-            background: #2d2d2d;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        .share-btn {
-            background-color: #6366f1;
-            /* Loom-like indigo */
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            /* Pill shape */
-            font-size: 13px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: background 0.2s;
-        }
-
-        .share-btn:hover {
-            background-color: #4f46e5;
-        }
-
-        .share-btn:active {
-            transform: scale(0.98);
-        }
-
-        /* Toast Notification */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%) translateY(50px);
-            background: #333;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            pointer-events: none;
-            z-index: 1000;
-        }
-
-        .toast.visible {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-        }
+        button { cursor: pointer; }
     </style>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -275,68 +433,66 @@
 
 <body>
     <div class="history-nav">
-        <!-- Back Button for History Window -->
-        <button id="closeHistoryBtn"
-            style="background:none; border:none; color:#ddd; margin-right: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 4px;">
+        <button id="closeHistoryBtn" class="nav-btn" title="Close">
             <span class="material-icons" style="font-size: 20px;">arrow_back</span>
         </button>
-        <h2>
-            Recording History
-        </h2>
-        <!-- Maybe a reload button? -->
+        <h2>Recordings</h2>
         <div style="flex:1;"></div>
-        <button id="refreshBtn" style="background:none; border:none; color:#888;">
-            <span class="material-icons">refresh</span>
+        <button id="refreshBtn" class="nav-btn" title="Refresh">
+            <span class="material-icons" style="font-size: 20px;">refresh</span>
         </button>
     </div>
 
     <div class="history-content">
-        <!-- Sidebar: Session List -->
+        <!-- Sidebar -->
         <div class="history-sidebar">
-            <div class="history-list-header">Recordings</div>
+            <div class="history-list-header">Library</div>
             <div id="historyListContainer"></div>
         </div>
 
-        <!-- Main: Player & Insights -->
+        <!-- Main -->
         <div class="history-main">
             <!-- Video Header -->
             <div class="video-header" id="videoHeader" style="display:none;">
                 <div class="video-title-group">
-                    <div class="video-title" id="currentVideoTitle">Select a video</div>
-                    <div class="video-meta-badge">
-                        <span class="material-icons" style="font-size: 12px;">public</span> Public Link
+                    <div class="video-title-row" id="videoTitleRow">
+                        <span class="video-title" id="currentVideoTitle">Select a video</span>
+                        <button class="edit-name-btn" id="editNameBtn" title="Rename">
+                            <span class="material-icons" style="font-size: 14px;">edit</span>
+                        </button>
                     </div>
+                    <input type="text" class="video-title-input" id="videoTitleInput" style="display:none;" maxlength="100" />
+                    <div id="videoStatusBadge" style="margin-top: 6px;"></div>
                 </div>
-                <button class="share-btn" id="shareBtn">
-                    <span class="material-icons" style="font-size: 16px;">link</span> Share
-                </button>
+                <div class="header-right">
+                    <button class="share-btn" id="shareBtn" disabled>
+                        <span class="material-icons" style="font-size: 16px;">link</span>
+                        <span id="shareBtnLabel">Share</span>
+                    </button>
+                </div>
             </div>
 
-            <!-- Top: Video Player -->
+            <!-- Player -->
             <div class="history-player-container">
                 <video id="historyVideoPlayer" controls playsinline>
                     <p style="color: #fff;">Video playback not supported</p>
                 </video>
             </div>
 
-            <!-- Bottom: Tabs info -->
-            <div class="history-info-tabs">
-                <div class="tabs-header">
-                    <button class="history-tab-btn active">Transcript</button>
-                    <button class="history-tab-btn" style="cursor: default; opacity: 0.5;">Comments</button>
-                    <button class="history-tab-btn" style="cursor: default; opacity: 0.5;">Views</button>
-                </div>
-                <div class="tab-body" id="insightsContent">
+            <!-- Transcript -->
+            <div class="transcript-panel">
+                <div class="transcript-header">Transcript</div>
+                <div class="transcript-body" id="insightsContent">
                     <div class="empty-state">Select a recording to view details.</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Toast Element -->
+    <!-- Toast -->
     <div class="toast" id="toast">
-        <span class="material-icons" style="color: #4CAF50; font-size: 18px;">check_circle</span>
-        <span>Link copied to clipboard</span>
+        <span class="material-icons" style="color: var(--success); font-size: 18px;">check_circle</span>
+        <span id="toastMessage">Link copied to clipboard</span>
     </div>
 
     <script src="history.js" type="module"></script>

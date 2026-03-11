@@ -123,6 +123,22 @@ class VideoDBService {
   }
 
   /**
+   * Fetch a fresh share URL for a video by calling the API.
+   * @param {string} apiKey
+   * @param {string} videoId
+   * @returns {Promise<{streamUrl: string|null, playerUrl: string|null}>}
+   */
+  async getShareUrl(apiKey, videoId) {
+    const conn = this._getConnection(apiKey);
+    const coll = await conn.getCollection();
+    const video = await coll.getVideo(videoId);
+    return {
+      streamUrl: video.streamUrl || null,
+      playerUrl: video.playerUrl || null,
+    };
+  }
+
+  /**
    * Clear all cached connections (e.g. on logout).
    */
   clearAll() {

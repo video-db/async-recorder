@@ -49,6 +49,13 @@ async function initDatabase(filePath) {
   db.run('CREATE INDEX IF NOT EXISTS idx_recordings_session_id ON recordings(session_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_users_access_token ON users(access_token)');
 
+  // Migration: add name column if missing
+  const cols = db.exec("PRAGMA table_info(recordings)");
+  const colNames = (cols[0]?.values || []).map(r => r[1]);
+  if (!colNames.includes('name')) {
+    db.run("ALTER TABLE recordings ADD COLUMN name TEXT");
+  }
+
   saveToFile();
   return db;
 }
@@ -131,8 +138,8 @@ function findUserByApiKey(apiKey) {
 
 function createRecording(data) {
   db.run(
-    `INSERT INTO recordings (video_id, stream_url, player_url, session_id, created_at, insights, insights_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO recordings (video_id, stream_url, player_url, session_id, created_at, insights, insights_status, name)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.video_id || null,
       data.stream_url || null,
@@ -141,6 +148,7 @@ function createRecording(data) {
       data.created_at || new Date().toISOString(),
       data.insights || null,
       data.insights_status || 'pending',
+      data.name || null,
     ]
   );
   const row = getOne('SELECT last_insert_rowid() as id');

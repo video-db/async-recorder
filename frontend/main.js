@@ -884,6 +884,8 @@ ipcMain.handle('get-recordings', async () => {
     const recordings = dbGetRecordings(20);
     return recordings.map(r => ({
       id: r.id,
+      name: r.name,
+      video_id: r.video_id,
       session_id: r.session_id,
       stream_url: r.stream_url,
       player_url: r.player_url,
@@ -897,6 +899,28 @@ ipcMain.handle('get-recordings', async () => {
   }
 });
 
+
+ipcMain.handle('get-share-url', async (event, videoId) => {
+  try {
+    const apiKey = getCurrentUserApiKey();
+    if (!apiKey) return { success: false, error: 'Not authenticated' };
+    const urls = await videodbService.getShareUrl(apiKey, videoId);
+    return { success: true, ...urls };
+  } catch (error) {
+    console.error('Error getting share URL:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-recording-name', async (event, id, name) => {
+  try {
+    updateRecording(id, { name });
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating recording name:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({

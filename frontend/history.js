@@ -2,296 +2,325 @@
  * History Window Logic
  */
 
-// HLS player active instance
 let hlsInstance = null;
 let activeRecordingId = null;
+let activeRecording = null;
+let refreshInterval = null;
 
-// Mock logger since we don't have the full logger module from renderer (or we can import if path allows)
-function addLog(msg, type = 'info') {
-    console.log(`[${type.toUpperCase()}] ${msg}`);
+const STATUS_MAP = {
+    recording:  { label: 'Recording',    cls: 'status-recording' },
+    pending:    { label: 'Processing',   cls: 'status-pending' },
+    processing: { label: 'Generating transcription', cls: 'status-processing' },
+    ready:      { label: 'Ready',        cls: 'status-ready' },
+    failed:     { label: 'Failed',       cls: 'status-failed' },
+};
+
+function getStatusInfo(status) {
+    return STATUS_MAP[status] || STATUS_MAP.pending;
 }
 
+function getDisplayName(recording) {
+    if (recording.name) return recording.name;
+    if (recording.created_at) {
+        const d = new Date(recording.created_at);
+        return 'Recording at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return 'Untitled Recording';
+}
+
+// --- Init ---
+
 async function init() {
-    console.log("Initializing History Window...");
     loadHistoryList();
 
-    const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', loadHistoryList);
-    }
+    document.getElementById('refreshBtn')?.addEventListener('click', loadHistoryList);
+    document.getElementById('closeHistoryBtn')?.addEventListener('click', () => window.close());
+    document.getElementById('shareBtn')?.addEventListener('click', handleShare);
+    document.getElementById('editNameBtn')?.addEventListener('click', () => startNameEdit());
 
-    // Share Button Logic
-    const shareBtn = document.getElementById('shareBtn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', handleShare);
-    }
-
-    // Back Button Logic
-    const closeBtn = document.getElementById('closeHistoryBtn');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            window.close();
+    const input = document.getElementById('videoTitleInput');
+    if (input) {
+        input.addEventListener('blur', () => commitNameEdit());
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            if (e.key === 'Escape') { cancelNameEdit(); }
         });
     }
 }
 
+// --- List ---
+
 async function loadHistoryList() {
-    const listContainer = document.getElementById("historyListContainer");
+    const listContainer = document.getElementById('historyListContainer');
     if (!listContainer) return;
 
-    listContainer.innerHTML = '<div class="empty-state" style="color:#888;">Loading...</div>';
+    listContainer.innerHTML = '<div class="empty-state">Loading...</div>';
 
     try {
-        // window.recorderAPI MUST be exposed in preload.js for this window too
-        // Add limit param (assuming recorderAPI.getRecordings supports args or we handle it in main)
-        // Note: recorderAPI.getRecordings calls ipcRenderer.invoke('get-recordings')
-        // We need to update main.js handler to pass limit, but current implementation might lack arg passing
-        // Let's assume we can fetch all and limit CLIENT side if main doesn't support it yet, 
-        // OR better: update main.js handler (but user didn't ask for that, they asked for limit in backend)
-        // Since we updated backend route, we should verify main.js passes args. 
-        // For now, let's just fetch. The backend default is 20 if we don't pass anything.
         const recordings = await window.recorderAPI.getRecordings();
 
         if (!recordings || recordings.length === 0) {
-            listContainer.innerHTML = '<div class="empty-state">No recordings found.</div>';
+            listContainer.innerHTML = '<div class="empty-state">No recordings yet.</div>';
+            scheduleAutoRefresh([]);
             return;
         }
 
-        // Filter valid dates and sort
         recordings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        listContainer.innerHTML = '';
 
-        listContainer.innerHTML = "";
-
-        // Grouping Logic
         const grouped = bucketRecordings(recordings);
-
         for (const [groupName, items] of Object.entries(grouped)) {
             if (items.length === 0) continue;
-
-            // Group Header
-            const header = document.createElement("div");
-            header.className = "history-group-header";
-            header.style.padding = "10px 12px 4px";
-            header.style.color = "#888";
-            header.style.fontSize = "12px";
-            header.style.fontWeight = "600";
-            header.style.textTransform = "uppercase";
-            header.innerText = groupName;
+            const header = document.createElement('div');
+            header.className = 'history-group-header';
+            header.textContent = groupName;
             listContainer.appendChild(header);
 
-            items.forEach((rec) => {
-                const item = createHistoryListItem(rec);
-                listContainer.appendChild(item);
-            });
+            items.forEach(rec => listContainer.appendChild(createHistoryListItem(rec)));
         }
 
-        // Auto-play top
-        if (recordings.length > 0) {
-            loadVideo(recordings[0]);
-            updateTranscriptPanel(recordings[0]);
-            updateHeader(recordings[0]);
-        }
+        // Auto-select first or preserve selection
+        const toSelect = recordings.find(r => r.id === activeRecordingId) || recordings[0];
+        if (toSelect) selectRecording(toSelect);
 
+        scheduleAutoRefresh(recordings);
     } catch (error) {
-        console.error('[History] Fetch error:', error);
-        listContainer.innerHTML = `<div class="empty-state" style="color:#f44336">Failed to load: ${error.message}</div>`;
+        listContainer.innerHTML = `<div class="empty-state" style="color:var(--error)">Failed to load: ${error.message}</div>`;
+    }
+}
+
+function scheduleAutoRefresh(recordings) {
+    if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+    const hasInProgress = recordings.some(r =>
+        r.insights_status === 'recording' || r.insights_status === 'pending' || r.insights_status === 'processing'
+    );
+    if (hasInProgress) {
+        refreshInterval = setInterval(loadHistoryList, 5000);
     }
 }
 
 function bucketRecordings(recordings) {
-    const buckets = {
-        "Today": [],
-        "Yesterday": [],
-        "Earlier": [] // or specific dates
-    };
-
+    const buckets = { "Today": [], "Yesterday": [], "Earlier": [] };
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
 
     recordings.forEach(rec => {
-        if (!rec.created_at) {
-            buckets["Earlier"].push(rec);
-            return;
-        }
-
-        const date = new Date(rec.created_at);
-        const dateNoTime = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-        if (dateNoTime.getTime() === today.getTime()) {
-            buckets["Today"].push(rec);
-        } else if (dateNoTime.getTime() === yesterday.getTime()) {
-            buckets["Yesterday"].push(rec);
-        } else {
-            // For older, we could group by date string, but user asked for "Earlier" or simple buckets
-            // Let's use simple Date String keys if we want more granular
-            const dateStr = dateNoTime.toLocaleDateString();
-            if (!buckets[dateStr]) buckets[dateStr] = [];
-            buckets[dateStr].push(rec);
-        }
+        if (!rec.created_at) { buckets["Earlier"].push(rec); return; }
+        const d = new Date(rec.created_at);
+        const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (dateOnly.getTime() === today.getTime()) buckets["Today"].push(rec);
+        else if (dateOnly.getTime() === yesterday.getTime()) buckets["Yesterday"].push(rec);
+        else buckets["Earlier"].push(rec);
     });
-
     return buckets;
 }
 
 function createHistoryListItem(recording) {
-    const div = document.createElement("div");
-    div.className = "history-item";
+    const div = document.createElement('div');
+    div.className = 'history-item';
     div.dataset.id = recording.id;
+    if (recording.id === activeRecordingId) div.classList.add('active');
 
-    // Parse Date for display
-    const dateObj = recording.created_at ? new Date(recording.created_at) : null;
-    const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-
-    const title = `Recording: ${recording.session_id || 'Untitled'}`;
-
-    // Status Badge
-    let statusBadge = '';
-    if (recording.insights_status === 'ready') {
-        statusBadge = '<span class="material-icons" style="font-size:14px; color:#4CAF50;">check_circle</span>';
-    } else {
-        statusBadge = '<span class="material-icons" style="font-size:14px; color:#888;">pending</span>';
-    }
+    const name = getDisplayName(recording);
+    const timeStr = recording.created_at
+        ? new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '';
+    const status = getStatusInfo(recording.insights_status);
 
     div.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="flex:1;">
-             <div style="font-size:13px; font-weight:500; color:#fff; margin-bottom:4px;">${title}</div>
-             <div style="font-size:11px; color:#888;">${timeStr}</div>
+        <div class="history-item-title">${name}</div>
+        <div class="history-item-meta">
+            <span class="history-item-time">${timeStr}</span>
+            <span class="status-badge ${status.cls}">
+                <span class="status-dot"></span>
+                ${status.label}
+            </span>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-            ${statusBadge}
-        </div>
-    </div>
     `;
 
-    div.addEventListener("click", () => {
-        loadVideo(recording);
-        updateTranscriptPanel(recording);
-        updateHeader(recording);
-    });
-
+    div.addEventListener('click', () => selectRecording(recording));
     return div;
 }
 
-function loadVideo(recording) {
-    const video = document.getElementById("historyVideoPlayer");
-    if (!video) return;
+// --- Selection ---
 
+function selectRecording(recording) {
     activeRecordingId = recording.id;
+    activeRecording = recording;
     updateActiveItemStyle();
+    loadVideo(recording);
+    updateHeader(recording);
+    updateTranscriptPanel(recording);
+}
 
-    if (!recording.stream_url) {
-        console.warn("No stream URL");
-        return;
-    }
+function updateActiveItemStyle() {
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.classList.toggle('active', Number(item.dataset.id) === activeRecordingId);
+    });
+}
+
+// --- Player ---
+
+function loadVideo(recording) {
+    const video = document.getElementById('historyVideoPlayer');
+    if (!video || !recording.stream_url) return;
 
     if (Hls.isSupported()) {
-        if (hlsInstance) {
-            hlsInstance.destroy();
-        }
+        if (hlsInstance) hlsInstance.destroy();
         hlsInstance = new Hls();
         hlsInstance.loadSource(recording.stream_url);
         hlsInstance.attachMedia(video);
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-            video.play().catch(e => console.log("Auto-play prevented:", e));
+            video.play().catch(() => {});
         });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = recording.stream_url;
-        video.addEventListener('loadedmetadata', () => {
-            video.play().catch(e => console.log("Auto-play prevented:", e));
-        });
+        video.addEventListener('loadedmetadata', () => { video.play().catch(() => {}); }, { once: true });
     }
 }
+
+// --- Header ---
 
 function updateHeader(recording) {
     const header = document.getElementById('videoHeader');
     const title = document.getElementById('currentVideoTitle');
+    const titleRow = document.getElementById('videoTitleRow');
+    const titleInput = document.getElementById('videoTitleInput');
+    const badge = document.getElementById('videoStatusBadge');
     const shareBtn = document.getElementById('shareBtn');
 
     if (header) header.style.display = 'flex';
-    if (title) title.innerText = `Recording: ${recording.session_id || 'Untitled'}`;
 
-    // Store URL for sharing
+    // Title
+    if (title) title.textContent = getDisplayName(recording);
+    if (titleRow) titleRow.style.display = 'flex';
+    if (titleInput) titleInput.style.display = 'none';
+
+    // Status badge
+    if (badge) {
+        const status = getStatusInfo(recording.insights_status);
+        badge.innerHTML = `<span class="status-badge ${status.cls}"><span class="status-dot"></span>${status.label}</span>`;
+    }
+
+    // Share button — only enabled when video is ready
     if (shareBtn) {
-        shareBtn.dataset.url = recording.player_url || recording.stream_url;
+        shareBtn.disabled = !recording.video_id;
+        document.getElementById('shareBtnLabel').textContent = 'Share';
     }
 }
 
-function handleShare() {
+// --- Editable Name ---
+
+function startNameEdit() {
+    if (!activeRecording) return;
+    const titleRow = document.getElementById('videoTitleRow');
+    const titleInput = document.getElementById('videoTitleInput');
+    if (!titleRow || !titleInput) return;
+
+    titleRow.style.display = 'none';
+    titleInput.style.display = 'block';
+    titleInput.value = getDisplayName(activeRecording);
+    titleInput.focus();
+    titleInput.select();
+}
+
+async function commitNameEdit() {
+    const titleRow = document.getElementById('videoTitleRow');
+    const titleInput = document.getElementById('videoTitleInput');
+    if (!titleRow || !titleInput || !activeRecording) return;
+
+    const newName = titleInput.value.trim();
+    titleRow.style.display = 'flex';
+    titleInput.style.display = 'none';
+
+    if (newName && newName !== getDisplayName(activeRecording)) {
+        activeRecording.name = newName;
+        document.getElementById('currentVideoTitle').textContent = newName;
+
+        // Update the sidebar item
+        const item = document.querySelector(`.history-item[data-id="${activeRecording.id}"] .history-item-title`);
+        if (item) item.textContent = newName;
+
+        await window.recorderAPI.updateRecordingName(activeRecording.id, newName);
+    }
+}
+
+function cancelNameEdit() {
+    const titleRow = document.getElementById('videoTitleRow');
+    const titleInput = document.getElementById('videoTitleInput');
+    if (titleRow) titleRow.style.display = 'flex';
+    if (titleInput) titleInput.style.display = 'none';
+}
+
+// --- Share ---
+
+async function handleShare() {
     const shareBtn = document.getElementById('shareBtn');
-    const url = shareBtn.dataset.url;
+    const label = document.getElementById('shareBtnLabel');
+    if (!shareBtn || !activeRecording?.video_id) return;
 
-    if (url) {
-        navigator.clipboard.writeText(url).then(() => {
-            showToast("Link copied to clipboard");
-        });
-    } else {
-        showToast("No link available");
+    // Enter loading state
+    shareBtn.disabled = true;
+    label.innerHTML = '<span class="spinner-small"></span> Generating...';
+
+    try {
+        const result = await window.recorderAPI.getShareUrl(activeRecording.video_id);
+        if (result.success && (result.playerUrl || result.streamUrl)) {
+            const url = result.playerUrl || result.streamUrl;
+            await navigator.clipboard.writeText(url);
+            showToast('Link copied to clipboard');
+        } else {
+            showToast(result.error || 'Could not generate link');
+        }
+    } catch (err) {
+        showToast('Failed to generate link');
     }
+
+    // Restore button
+    label.innerHTML = 'Share';
+    shareBtn.disabled = false;
 }
 
-function showToast(message) {
-    const toast = document.getElementById('toast');
-    if (toast) {
-        toast.querySelector('span:last-child').innerText = message;
-        toast.classList.add('visible');
-        setTimeout(() => {
-            toast.classList.remove('visible');
-        }, 3000);
-    }
-}
+// --- Transcript ---
 
 function updateTranscriptPanel(recording) {
-    const insightsContent = document.getElementById("insightsContent");
-    if (!insightsContent) return;
-
-    // Default pending state
-    let content = `
-        <div style="padding: 20px; text-align:center; color:#666;">
-            <div style="margin-bottom:8px;">Generated by VideoDB</div>
-            Status: ${recording.insights_status || 'Pending'}
-        </div>
-    `;
+    const panel = document.getElementById('insightsContent');
+    if (!panel) return;
 
     if (recording.insights_status === 'ready' && recording.insights) {
         try {
-            // Check if insights is string or object (backend might return dict now)
-            const insightsData = (typeof recording.insights === 'string')
-                ? JSON.parse(recording.insights)
-                : recording.insights;
-
-            if (insightsData && insightsData.transcript) {
-                content = `
-                    <div style="padding: 20px; line-height: 1.6; color: #e0e0e0; font-size: 13px;">
-                        ${insightsData.transcript.replace(/\n/g, '<br>')}
-                    </div>
-                `;
-            } else {
-                content = `
-                    <div style="padding: 20px; text-align:center; color:#666;">
-                        Transcript not available.
-                    </div>
-                `;
+            const data = typeof recording.insights === 'string'
+                ? JSON.parse(recording.insights) : recording.insights;
+            if (data?.transcript) {
+                panel.innerHTML = `<div style="line-height:1.7; color:var(--text-secondary); font-size:13px;">
+                    ${data.transcript.replace(/\n/g, '<br>')}
+                </div>`;
+                return;
             }
-        } catch (e) {
-            console.error("Error parsing insights:", e);
-        }
+        } catch (e) { /* fall through */ }
     }
 
-    insightsContent.innerHTML = content;
+    const status = getStatusInfo(recording.insights_status);
+    const isProcessing = ['recording', 'pending', 'processing'].includes(recording.insights_status);
+
+    panel.innerHTML = `
+        <div class="empty-state">
+            ${isProcessing ? '<div class="spinner-small" style="margin: 0 auto 10px; border-color: var(--border-light); border-top-color: var(--text-muted);"></div>' : ''}
+            <div>${status.label}${isProcessing ? '...' : ''}</div>
+        </div>
+    `;
 }
 
-function updateActiveItemStyle() {
-    const items = document.querySelectorAll(".history-item");
-    items.forEach(item => {
-        if (Number(item.dataset.id) === activeRecordingId) {
-            item.classList.add("active");
-        } else {
-            item.classList.remove("active");
-        }
-    });
+// --- Toast ---
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    const msg = document.getElementById('toastMessage');
+    if (!toast || !msg) return;
+    msg.textContent = message;
+    toast.classList.add('visible');
+    setTimeout(() => toast.classList.remove('visible'), 2500);
 }
 
 // Start
