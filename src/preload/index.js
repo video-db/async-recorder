@@ -20,7 +20,9 @@ contextBridge.exposeInMainWorld('recorderAPI', {
     requestCameraPermission: () => ipcRenderer.invoke('request-camera-permission'),
     toggleCamera: (show) => ipcRenderer.invoke(show ? 'camera-show' : 'camera-hide'),
     openSystemSettings: (type) => ipcRenderer.invoke('open-system-settings', type),
-    openHistoryWindow: () => ipcRenderer.invoke('open-history-window')
+    openHistoryWindow: () => ipcRenderer.invoke('open-history-window'),
+    notifyRecordingState: (recording) => ipcRenderer.send('recording-state-changed', recording),
+    showNotification: (title, body) => ipcRenderer.send('show-notification', { title, body }),
 });
 
 // Config API

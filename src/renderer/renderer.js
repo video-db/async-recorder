@@ -2,7 +2,7 @@
  * Main Renderer Process
  */
 import { addLog } from './utils/logger.js';
-import { initSidebar, setSessionActive, setSessionLoading, resetSessionUI } from './ui/sidebar.js';
+import { initSidebar, setSessionActive, setSessionLoading, resetSessionUI, getActiveSessionId } from './ui/sidebar.js';
 
 import { initOnboarding } from './ui/onboarding.js';
 import { initPermissionsFlow } from './ui/permissions.js';
@@ -22,21 +22,36 @@ if (!window.hasRegisteredRecorderEvents) {
       case 'recording:started':
         addLog(`Recording started: ${data.sessionId}`, 'success');
         setSessionActive(data.sessionId);
+        window.recorderAPI.notifyRecordingState(true);
+        window.recorderAPI.showNotification('Recording Started', 'Screen and audio capture is active.');
         break;
       case 'recording:stopped':
         addLog(`Recording stopped: ${data.sessionId}`, 'info');
         resetSessionUI();
+        window.recorderAPI.notifyRecordingState(false);
+        window.recorderAPI.showNotification('Recording Stopped', 'Your recording is being processed.');
         break;
       case 'recording:error':
         addLog(`Recording error: ${data.error || data.message || 'Unknown error'}`, 'error');
         resetSessionUI();
+        window.recorderAPI.notifyRecordingState(false);
         break;
       case 'upload:progress':
         console.log(`Upload progress: ${data.channelId} - ${Math.round((data.progress || 0) * 100)}%`);
         break;
       case 'upload:complete':
         addLog(`Upload complete`, 'success');
+        window.recorderAPI.showNotification('Upload Complete', 'Your recording is ready to view.');
         break;
+      case 'shortcut:toggle-recording': {
+        const sessionId = getActiveSessionId();
+        if (sessionId) {
+          window.recorderAPI.stopSession(sessionId).then(() => resetSessionUI());
+        } else {
+          startSessionFlow();
+        }
+        break;
+      }
       case 'error':
         addLog(`Error: ${data.message || 'Unknown error'}`, 'error');
         break;

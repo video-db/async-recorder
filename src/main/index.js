@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto');
@@ -28,8 +28,10 @@ const { registerAllHandlers } = require('./ipc');
 let mainWindow = null;
 let cameraWindow = null;
 let historyWindow = null;
+let tray = null;
 let videodbService = null;
 let isShuttingDown = false;
+let isRecording = false;
 
 // ============================================================================
 // Window Creation
@@ -111,6 +113,100 @@ function createHistoryWindow() {
 
   historyWindow.loadFile(path.join(RENDERER_DIR, 'history.html'));
   historyWindow.on('closed', () => { historyWindow = null; });
+}
+
+// ============================================================================
+// System Tray
+// ============================================================================
+
+/**
+ * Create a macOS template tray icon (black on transparent, 36x36 @2x).
+ * @param {boolean} filled - true for filled circle (recording), false for outline (idle)
+ */
+function createTrayIcon(filled) {
+  const size = 36; // 18pt @2x retina
+  const buf = Buffer.alloc(size * size * 4);
+  const center = size / 2;
+  const radius = filled ? 7 : 8;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - center + 0.5;
+      const dy = y - center + 0.5;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const idx = (y * size + x) * 4;
+
+      let alpha = 0;
+      if (filled) {
+        if (dist <= radius) alpha = 255;
+        else if (dist <= radius + 1) alpha = Math.round(255 * (radius + 1 - dist));
+      } else {
+        const strokeHalf = 1;
+        const edge = Math.abs(dist - radius);
+        if (edge <= strokeHalf) alpha = 255;
+        else if (edge <= strokeHalf + 1) alpha = Math.round(255 * (strokeHalf + 1 - edge));
+      }
+
+      buf[idx] = 0;         // R
+      buf[idx + 1] = 0;     // G
+      buf[idx + 2] = 0;     // B
+      buf[idx + 3] = alpha;  // A
+    }
+  }
+
+  const img = nativeImage.createFromBuffer(buf, { width: size, height: size, scaleFactor: 2.0 });
+  img.setTemplateImage(true);
+  return img;
+}
+
+function createTray() {
+  tray = new Tray(createTrayIcon(false));
+  tray.setToolTip('Async Recorder');
+  updateTrayMenu();
+
+  tray.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+  tray.setImage(createTrayIcon(isRecording));
+  const menu = Menu.buildFromTemplate([
+    {
+      label: isRecording ? 'Stop Recording' : 'Start Recording',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
+          mainWindow.show();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'History',
+      click: () => createHistoryWindow(),
+    },
+    {
+      label: 'Show Window',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => app.quit(),
+    },
+  ]);
+  tray.setContextMenu(menu);
+  tray.setToolTip(isRecording ? 'Async Recorder — Recording...' : 'Async Recorder');
 }
 
 // ============================================================================
@@ -255,14 +351,35 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
+  ipcMain.on('recording-state-changed', (_event, recording) => {
+    isRecording = recording;
+    updateTrayMenu();
+  });
+
+  ipcMain.on('show-notification', (_event, { title, body }) => {
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
+  });
+
   // 4. Create windows
   createMainWindow();
   createCameraWindow();
+  createTray();
+
+  // 5. Register global shortcuts
+  globalShortcut.register('CommandOrControl+Shift+R', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
+      mainWindow.show();
+    }
+  });
 });
 
 // --- Shutdown ---
 
 app.on('window-all-closed', async () => {
+  globalShortcut.unregisterAll();
   await stopServices();
   if (process.platform !== 'darwin') app.quit();
 });

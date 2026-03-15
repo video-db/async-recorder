@@ -148,6 +148,7 @@
         .status-badge.recording {
             background: var(--error-dim);
             color: var(--error);
+            font-variant-numeric: tabular-nums;
         }
 
         .status-badge.recording .status-dot {
@@ -239,6 +240,50 @@
             border-radius: 50%;
             border-top-color: transparent;
             animation: spin 0.8s linear infinite;
+        }
+
+        /* ===========================================
+           Quick Rename Row
+           =========================================== */
+        .rename-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .rename-input {
+            flex: 1;
+            padding: 7px 10px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .rename-input:focus {
+            border-color: var(--accent);
+        }
+
+        .rename-save {
+            padding: 7px 14px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+
+        .rename-save:hover {
+            background: var(--accent-hover);
         }
 
         /* ===========================================
@@ -902,6 +947,11 @@
 
             <button id="btn-start-session" class="btn-action btn-start">Start Recording</button>
             <button id="btn-stop-session" class="btn-action btn-stop">Stop Recording</button>
+
+            <div id="renameRow" class="rename-row hidden">
+                <input type="text" id="renameInput" class="rename-input" placeholder="Name this recording..." maxlength="100">
+                <button id="renameSaveBtn" class="rename-save">Save</button>
+            </div>
 
             <div class="source-row">
                 <button id="toggle-mic" class="source-toggle active disabled" title="Microphone" disabled>

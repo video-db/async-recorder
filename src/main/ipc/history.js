@@ -1,7 +1,7 @@
 'use strict';
 
 const { ipcMain } = require('electron');
-const { getRecordings: dbGetRecordings, updateRecording } = require('../db/database');
+const { getRecordings: dbGetRecordings, updateRecording, findRecordingBySessionId } = require('../db/database');
 const { getAppConfig } = require('../lib/config');
 const { findUserByToken } = require('../db/database');
 
@@ -45,7 +45,14 @@ function registerHistoryHandlers(getVideodbService) {
 
   ipcMain.handle('update-recording-name', async (_event, id, name) => {
     try {
-      updateRecording(id, { name });
+      let recordingId = id;
+      // Sidebar passes session_id strings; history page passes integer ids
+      if (typeof id === 'string') {
+        const rec = findRecordingBySessionId(id);
+        if (!rec) return { success: false, error: 'Recording not found' };
+        recordingId = rec.id;
+      }
+      updateRecording(recordingId, { name });
       return { success: true };
     } catch (error) {
       console.error('Error updating recording name:', error);

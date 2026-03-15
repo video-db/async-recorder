@@ -21,10 +21,17 @@ const elements = {
     menuLogoutBtn: document.getElementById('menuLogoutBtn'),
 
     settingsSection: document.getElementById('settingsSection'),
+
+    renameRow: document.getElementById('renameRow'),
+    renameInput: document.getElementById('renameInput'),
+    renameSaveBtn: document.getElementById('renameSaveBtn'),
 };
 
 // State
 let activeSessionId = null;
+let lastSessionId = null;
+let timerInterval = null;
+let timerSeconds = 0;
 
 // --- Initialization ---
 export async function initSidebar(onStartSessionCallback) {
@@ -48,12 +55,14 @@ export async function initSidebar(onStartSessionCallback) {
     }
 
     bindToggleEvents();
+    bindRenameEvents();
 }
 
 // --- Session State Management ---
 
 export function setSessionActive(sessionId) {
     activeSessionId = sessionId;
+    hideRenameRow();
 
     if (elements.btnStart) elements.btnStart.classList.add('hidden');
     if (elements.btnStop) {
@@ -64,9 +73,7 @@ export function setSessionActive(sessionId) {
     if (elements.statusBadge) {
         elements.statusBadge.className = 'status-badge recording';
     }
-    if (elements.statusText) {
-        elements.statusText.textContent = 'Recording';
-    }
+    startTimer();
 
     enableToggles(true);
     resetToggles();
@@ -86,6 +93,9 @@ export function setSessionLoading() {
 }
 
 export function resetSessionUI() {
+    if (activeSessionId) {
+        lastSessionId = activeSessionId;
+    }
     activeSessionId = null;
 
     if (elements.btnStart) {
@@ -93,10 +103,16 @@ export function resetSessionUI() {
         elements.btnStart.style.display = 'flex';
         elements.btnStart.disabled = false;
     }
+
+    // Show rename row if there was a recording
+    if (lastSessionId) {
+        showRenameRow();
+    }
     if (elements.btnStop) {
         elements.btnStop.style.display = 'none';
     }
 
+    stopTimer();
     if (elements.statusBadge) {
         elements.statusBadge.className = 'status-badge';
     }
@@ -121,6 +137,82 @@ async function stopSession() {
     } catch (error) {
         addLog(`Stop error: ${error.message}`, 'error');
         resetSessionUI();
+    }
+}
+
+// --- Recording Timer ---
+
+function formatTime(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function startTimer() {
+    stopTimer();
+    timerSeconds = 0;
+    if (elements.statusText) {
+        elements.statusText.textContent = `Rec ${formatTime(0)}`;
+    }
+    timerInterval = setInterval(() => {
+        timerSeconds++;
+        if (elements.statusText) {
+            elements.statusText.textContent = `Rec ${formatTime(timerSeconds)}`;
+        }
+    }, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    timerSeconds = 0;
+}
+
+export function getActiveSessionId() {
+    return activeSessionId;
+}
+
+// --- Quick Rename ---
+
+function showRenameRow() {
+    if (!elements.renameRow || !elements.renameInput) return;
+    elements.renameRow.classList.remove('hidden');
+    elements.renameInput.value = '';
+    elements.renameInput.focus();
+}
+
+function hideRenameRow() {
+    if (!elements.renameRow) return;
+    elements.renameRow.classList.add('hidden');
+    if (elements.renameInput) elements.renameInput.value = '';
+}
+
+async function saveRecordingName() {
+    const name = elements.renameInput ? elements.renameInput.value.trim() : '';
+    if (!name || !lastSessionId) {
+        hideRenameRow();
+        return;
+    }
+    try {
+        await window.recorderAPI.updateRecordingName(lastSessionId, name);
+        addLog('Recording renamed', 'success');
+    } catch (err) {
+        addLog(`Rename failed: ${err.message}`, 'error');
+    }
+    hideRenameRow();
+}
+
+function bindRenameEvents() {
+    if (elements.renameSaveBtn) {
+        elements.renameSaveBtn.addEventListener('click', saveRecordingName);
+    }
+    if (elements.renameInput) {
+        elements.renameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') saveRecordingName();
+            if (e.key === 'Escape') hideRenameRow();
+        });
     }
 }
 
