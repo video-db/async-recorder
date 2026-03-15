@@ -23,15 +23,45 @@
     <br />
     <a href="#features">View Features</a>
     ·
-    <a href="#quick-start">Quick Start</a>
+    <a href="#download">Download</a>
     ·
     <a href="https://github.com/video-db/async-recorder/issues">Report Bug</a>
   </p>
 </p>
 
 <p align="center">
-  <em>Currently available for macOS — Windows and Linux support coming soon</em>
+  <img src="assets/home.png" alt="Async Recorder" width="400">
 </p>
+
+---
+
+## Download
+
+- **Apple Silicon (M1/M2/M3/M4)**: [async-recorder-1.5.2-arm64.dmg](https://artifacts.videodb.io/sales-copilot/async-recorder-1.5.2-arm64.dmg)
+- **Apple Intel**: [async-recorder-1.5.2-x64.dmg](https://artifacts.videodb.io/sales-copilot/async-recorder-1.5.2-x64.dmg)
+
+<p>
+  <em>Pre-built DMGs are available for macOS. Windows users can run from source — see <a href="#development-setup">Development Setup</a>. Linux support coming soon.</em>
+</p>
+
+---
+
+## Installation (Pre-built App)
+
+If you downloaded the pre-built app from the links above:
+
+1. **Mount the DMG** and drag Async Recorder to your Applications folder
+
+2. **Remove quarantine attributes** to allow the app to run:
+   ```bash
+   xattr -cr /Applications/Async\ Recorder.app
+   ```
+
+3. **Launch the app** from Applications or Spotlight
+
+4. **Grant system permissions** when prompted (Microphone and Screen Recording are required)
+
+5. **Enter your VideoDB API key** on first launch ([console.videodb.io](https://console.videodb.io))
 
 ---
 
@@ -40,18 +70,24 @@
 - Screen + microphone + system audio capture via [VideoDB Capture SDK](https://docs.videodb.io)
 - Draggable camera bubble overlay
 - Real-time session events via WebSocket
+- Recording timer with live duration display
+- Global keyboard shortcut (`Cmd+Shift+R`) to toggle recording
+- System tray icon with recording state and context menu
+- Native toast notifications for recording events
+- Quick rename prompt after each recording
 - Recording history with pipeline status tracking (Recording → Processing → Transcription → Ready)
-- Editable recording names
 - Auto-indexing with transcript generation and subtitles
 - On-demand share link generation
 - In-app video playback (HLS)
 
-## Prerequisites
+## Development Setup
+
+### Prerequisites
 
 - Node.js 18+
 - VideoDB API Key ([console.videodb.io](https://console.videodb.io))
 
-## Quick Start
+### Quick Start
 
 ```bash
 npm install
@@ -203,7 +239,7 @@ Then run `npm start`
 # Build directory (for testing)
 npm run pack
 
-# Build DMG installer (macOS arm64)
+# Build DMG installers (macOS arm64 + x64)
 npm run dist
 ```
 

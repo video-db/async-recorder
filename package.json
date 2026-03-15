@@ -42,10 +42,12 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
-      ]
+      ],
+      "artifactName": "async-recorder-${version}-${arch}.${ext}"
     },
     "dmg": {
       "title": "Async Recorder ${version}",
