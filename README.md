@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <strong>Platform Support:</strong> macOS and Windows
+  <em>Currently available for macOS — Windows and Linux support coming soon</em>
 </p>
 
 ---
@@ -48,7 +48,7 @@
 
 ## Prerequisites
 
-- Node.js 16+
+- Node.js 18+
 - VideoDB API Key ([console.videodb.io](https://console.videodb.io))
 
 ## Quick Start
@@ -70,39 +70,104 @@ On first launch, grant microphone and screen recording permissions, then enter y
 
 ## Architecture
 
-```
-Electron Main Process
-├── VideoDB Node SDK (videodb ^0.2.2)
-│   ├── CaptureClient (local capture via native binary)
-│   ├── WebSocket (real-time session events)
-│   └── Connection (API: sessions, tokens, video ops)
-├── SQLite (sql.js, pure JS — users + recordings)
-└── IPC Handlers (bridge to renderer)
+```mermaid
+graph LR
+    subgraph EA["  Electron App  "]
+        R["Renderer UI"]
+        M["Main Process"]
+        DB[("SQLite")]
+        SDK["VideoDB Node SDK"]
+        R -->|IPC| M
+        M --> DB
+        M --> SDK
+    end
+
+    subgraph VS["  VideoDB SDK  "]
+        CC["CaptureClient"]
+        WS["WebSocket"]
+        API["Connection API"]
+        BIN["Native Binary"]
+        SDK --> CC & WS & API
+        CC --> BIN
+    end
+
+    subgraph LC["  Local Capture  "]
+        SC["Screen Capture"]
+        MIC["Microphone"]
+        SA["System Audio"]
+        BIN --> SC & MIC & SA
+    end
+
+    subgraph VC["  VideoDB Cloud  "]
+        UPLOAD["Upload & Export"]
+        STREAM["HLS Streaming"]
+        IDX["Indexing"]
+        TRX["Transcription"]
+        UPLOAD --> STREAM
+        IDX --> TRX
+    end
+
+    BIN -->|"upload chunks"| UPLOAD
+    WS -->|"session events"| UPLOAD
+    API -->|"index / transcribe"| IDX
+
+    classDef purple fill:#2d2563,stroke:#7c6af7,stroke-width:1.5px,color:#c4b8f8
+    classDef teal   fill:#0d3d38,stroke:#2dd4bf,stroke-width:1.5px,color:#81e8d8
+    classDef coral  fill:#3d1a20,stroke:#f38ba8,stroke-width:1.5px,color:#f9c0cb
+    classDef green  fill:#0d2e1a,stroke:#a6e3a1,stroke-width:1.5px,color:#b8f0c0
+    classDef db     fill:#1a1a2e,stroke:#7c6af7,stroke-width:1.5px,color:#c4b8f8
+
+    class R,M,SDK purple
+    class CC,WS,API,BIN teal
+    class SC,MIC,SA coral
+    class UPLOAD,IDX,TRX,STREAM green
+    class DB db
+
+    style EA fill:#12102a,stroke:#7c6af7,stroke-width:2px,color:#a89ef5
+    style VS fill:#071f1c,stroke:#2dd4bf,stroke-width:2px,color:#5ecfc4
+    style LC fill:#1f0d10,stroke:#f38ba8,stroke-width:2px,color:#f0a0b0
+    style VC fill:#071810,stroke:#a6e3a1,stroke-width:2px,color:#8ed4a0
 ```
 
-**Event flow:** The app connects a WebSocket before each recording session. When recording stops, the server-side export triggers a `capture_session` event over WebSocket with the video ID, stream URL, and player URL. A polling fallback syncs any missed events on app restart.
+**Recording flow:** The app creates a `CaptureClient` which spawns a native binary to capture screen, mic, and system audio. Chunks are uploaded to VideoDB Cloud in real-time. A WebSocket connection delivers session events (started, stopped, exported) back to the app.
 
-**Post-recording:** Once a video is exported, the app automatically indexes spoken words, generates a transcript, and creates a subtitled stream — all via the VideoDB SDK.
+**Post-recording:** Once the video is exported, the app calls the VideoDB API to index spoken words, generate a transcript, and create a subtitled stream — all available for in-app HLS playback or sharing via URL.
 
 ## Project Structure
 
 ```
-├── frontend/
-│   ├── main.js          # Electron main process + IPC handlers
-│   ├── preload.js       # Context bridge (renderer ↔ main)
-│   ├── index.html       # Main window (recorder controls)
-│   ├── renderer.js      # Main window renderer
-│   ├── camera.*         # Camera bubble overlay
-│   ├── history.*        # Recording history window
-│   ├── src/
-│   │   ├── ui/          # Onboarding, permissions, sidebar
-│   │   └── utils/       # Logger, permission helpers
-│   └── server/          # In-process backend modules
-│       ├── database.js          # SQLite via sql.js
-│       ├── videodb-service.js   # VideoDB SDK wrapper
-│       └── insights-service.js  # Transcript + subtitle indexing
-├── package.json
-└── .env                 # Optional: VIDEODB_API_URL override
+src/
+├── main/                       # Electron Main Process
+│   ├── index.js                # App entry point, window creation
+│   ├── db/
+│   │   └── database.js         # SQLite via sql.js
+│   ├── ipc/                    # IPC handlers
+│   │   ├── capture.js          # Recording start/stop, channels
+│   │   ├── permissions.js      # Permission check/request
+│   │   ├── camera.js           # Camera bubble control
+│   │   └── auth.js             # Login, logout, onboarding
+│   ├── lib/                    # Utilities
+│   │   ├── config.js           # App config
+│   │   ├── logger.js           # File + console logging
+│   │   ├── paths.js            # App paths (DB, config, logs)
+│   │   └── videodb-patch.js    # Binary relocation for packaged apps
+│   └── services/
+│       ├── videodb.service.js  # VideoDB SDK wrapper
+│       ├── session.service.js  # Session tokens, WebSocket, sync
+│       └── insights.service.js # Transcript + subtitle indexing
+├── renderer/                   # Renderer scripts (context-isolated)
+│   ├── renderer.js             # Main window UI
+│   ├── history.js              # History window + HLS player
+│   ├── camera.js               # Camera bubble
+│   ├── pages/                  # HTML pages
+│   └── styles/                 # CSS
+└── preload/
+    └── preload.js              # Context bridge (renderer ↔ main)
+
+build/
+├── afterPack.js                # electron-builder hook (codesign, plist patch)
+├── entitlements.mac.plist      # macOS entitlements
+└── icon.icns                   # App icon
 ```
 
 ## Configuration
@@ -162,7 +227,7 @@ MIT
 <!-- MARKDOWN LINKS & IMAGES -->
 [electron-shield]: https://img.shields.io/badge/Electron-39.0-47848F?style=for-the-badge&logo=electron&logoColor=white
 [electron-url]: https://www.electronjs.org/
-[node-shield]: https://img.shields.io/badge/Node.js-16+-339933?style=for-the-badge&logo=node.js&logoColor=white
+[node-shield]: https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white
 [node-url]: https://nodejs.org/
 [license-shield]: https://img.shields.io/github/license/video-db/async-recorder.svg?style=for-the-badge
 [license-url]: https://github.com/video-db/async-recorder/blob/main/LICENSE

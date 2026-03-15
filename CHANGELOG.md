@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.2] - 2026-03-16
+
+- Restructured app from flat `frontend/` layout to modular `src/` architecture (main, renderer, preload)
+- Fixed packaged DMG crash: capture binary now copied to writable `userData/bin/` with spawn redirect (`videodb-patch.js`)
+- Added `afterPack.js` build hook for VideoDBCapture.app codesigning and Info.plist patching
+- Added stale lock file cleanup on startup
+- Updated VideoDB SDK to v0.2.2
+- Updated README with Mermaid architecture diagram and new project structure
+- Improved `.gitignore` for Electron app conventions
+
 ## [1.5.1] - 2025-02-24
 
 - Removed Python backend — all server logic now runs inside Electron (Node.js)

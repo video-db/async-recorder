@@ -41,7 +41,13 @@ async function indexVideo(videoId, apiKey, baseUrl) {
 
     // Step 1: Index spoken words for search
     console.log(`[Insights] Indexing spoken words for ${videoId}...`);
-    await video.indexSpokenWords();
+    try {
+      await video.indexSpokenWords();
+    } catch (err) {
+      // No speech detected — recording is fine, just no transcript to generate
+      console.log(`[Insights] No spoken words found for ${videoId}, skipping transcript`);
+      return { transcript: null, subtitleUrl: null };
+    }
 
     // Step 2: Get transcript text
     console.log(`[Insights] Getting transcript for ${videoId}...`);

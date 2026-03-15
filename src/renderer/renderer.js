@@ -1,11 +1,11 @@
 /**
  * Main Renderer Process
  */
-import { addLog } from './src/utils/logger.js';
-import { initSidebar, setSessionActive, setSessionLoading, resetSessionUI } from './src/ui/sidebar.js';
+import { addLog } from './utils/logger.js';
+import { initSidebar, setSessionActive, setSessionLoading, resetSessionUI } from './ui/sidebar.js';
 
-import { initOnboarding } from './src/ui/onboarding.js';
-import { initPermissionsFlow } from './src/ui/permissions.js';
+import { initOnboarding } from './ui/onboarding.js';
+import { initPermissionsFlow } from './ui/permissions.js';
 // import { initHistoryLogic } from './src/ui/history.js'; // Moved to history.html
 
 // Global Event Handler

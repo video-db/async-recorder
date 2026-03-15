@@ -5,6 +5,7 @@
 let hlsInstance = null;
 let activeRecordingId = null;
 let activeRecording = null;
+let activeStreamUrl = null;
 let refreshInterval = null;
 
 const STATUS_MAP = {
@@ -164,10 +165,20 @@ function updateActiveItemStyle() {
 
 function loadVideo(recording) {
     const video = document.getElementById('historyVideoPlayer');
-    if (!video || !recording.stream_url) return;
+    if (!video) return;
+
+    // Skip reload if the same stream is already playing
+    if (recording.stream_url && recording.stream_url === activeStreamUrl) return;
+
+    // Clear previous playback
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    video.removeAttribute('src');
+    video.load();
+    activeStreamUrl = recording.stream_url || null;
+
+    if (!recording.stream_url) return;
 
     if (Hls.isSupported()) {
-        if (hlsInstance) hlsInstance.destroy();
         hlsInstance = new Hls();
         hlsInstance.loadSource(recording.stream_url);
         hlsInstance.attachMedia(video);

@@ -1,8 +1,8 @@
 {
   "name": "async-recorder",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "A sample Electron application for screen and camera recording using VideoDB Capture SDK",
-  "main": "frontend/main.js",
+  "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
@@ -13,20 +13,26 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^39.0.0",
+    "electron": "^39.7.0",
     "electron-builder": "^24.6.4"
   },
   "build": {
     "appId": "com.videodb.async-recorder",
     "productName": "Async Recorder",
     "files": [
-      "frontend/**/*",
-      "package.json",
-      "node_modules/videodb/**/*",
-      "node_modules/sql.js/**/*"
+      "src/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/videodb/bin/**"
     ],
     "mac": {
       "identity": null,
+      "icon": "build/icon.icns",
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "Async Recorder needs screen recording permission to capture your display during sessions.",
         "NSMicrophoneUsageDescription": "Async Recorder needs microphone access to capture audio during sessions.",
@@ -41,9 +47,19 @@
         }
       ]
     },
-    "asarUnpack": [
-      "node_modules/videodb/**/*"
-    ]
+    "dmg": {
+      "title": "Async Recorder ${version}",
+      "icon": "build/icon.icns",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        { "x": 140, "y": 200, "type": "file" },
+        { "x": 400, "y": 200, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "afterPack": "./build/afterPack.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
