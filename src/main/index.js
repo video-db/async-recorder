@@ -40,9 +40,9 @@ let isRecording = false;
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 380,
-    height: 340,
-    minHeight: 300,
-    maxHeight: 420,
+    height: 290,
+    minHeight: 250,
+    maxHeight: 360,
     minWidth: 340,
     maxWidth: 480,
     resizable: true,

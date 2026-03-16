@@ -2,13 +2,16 @@
 
 ## [1.5.2] - 2026-03-16
 
-- Restructured app from flat `frontend/` layout to modular `src/` architecture (main, renderer, preload)
-- Fixed packaged DMG crash: capture binary now copied to writable `userData/bin/` with spawn redirect (`videodb-patch.js`)
-- Added `afterPack.js` build hook for VideoDBCapture.app codesigning and Info.plist patching
-- Added stale lock file cleanup on startup
+- Redesigned main window with a compact, modern layout
+- Recording timer with live duration display
+- Quick rename prompt after each recording
+- Global keyboard shortcut (`Cmd+Shift+R`) to start/stop recording
+- System tray icon with recording state and context menu
+- Native notifications for recording events
+- Light and dark theme support
+- Pre-built DMG downloads for macOS (arm64 + x64)
 - Updated VideoDB SDK to v0.2.2
-- Updated README with Mermaid architecture diagram and new project structure
-- Improved `.gitignore` for Electron app conventions
+- Bug fixes and stability improvements
 
 ## [1.5.1] - 2025-02-24
 
