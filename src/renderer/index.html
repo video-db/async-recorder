@@ -40,6 +40,36 @@
             --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.5);
         }
 
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-surface: #e8e8ec;
+            --bg-hover: #dddde1;
+            --bg-card: rgba(0, 0, 0, 0.03);
+            --border: #d4d4d8;
+            --border-light: #c4c4c9;
+            --text-primary: #18181b;
+            --text-secondary: #52525b;
+            --text-muted: #a1a1aa;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #16a34a;
+            --success-dim: rgba(22, 163, 74, 0.12);
+            --success-hover: #15803d;
+            --warning: #d97706;
+            --warning-dim: rgba(217, 119, 6, 0.12);
+            --error: #dc2626;
+            --error-dim: rgba(220, 38, 38, 0.1);
+            --error-hover: #b91c1c;
+            --info: #2563eb;
+            --toggle-active-bg: rgba(0, 0, 0, 0.06);
+            --toggle-inactive-bg: transparent;
+            --toggle-active-border: var(--border-light);
+            --toggle-inactive-border: var(--border);
+            --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
         /* ===========================================
            Reset & Base
            =========================================== */
@@ -361,29 +391,6 @@
             opacity: 1;
         }
 
-        /* ===========================================
-           Settings Section
-           =========================================== */
-        .settings-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 10px;
-            border-top: 1px solid var(--border);
-            cursor: pointer;
-            transition: color 0.2s;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-
-        .settings-section:hover {
-            color: var(--text-secondary);
-        }
-
-        .settings-section img {
-            flex-shrink: 0;
-        }
 
         /* ===========================================
            Header Action Buttons
@@ -524,6 +531,47 @@
             width: 16px;
             height: 16px;
             opacity: 0.8;
+        }
+
+        .profile-menu-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        .profile-menu-info {
+            padding: 8px 15px;
+            color: var(--text-muted);
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .theme-switcher {
+            display: flex;
+            margin-left: auto;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            padding: 2px;
+            gap: 2px;
+        }
+
+        .theme-btn {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 11px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .theme-btn.active {
+            background: var(--bg-surface);
+            color: var(--text-primary);
         }
 
         /* ===========================================
@@ -926,6 +974,24 @@
                 <span id="userNameTooltip" class="profile-tooltip">Loading...</span>
                 <div id="profileMenu" class="profile-menu">
                     <div id="menuUserName" class="profile-menu-header">Loading...</div>
+                    <div class="profile-menu-item">
+                        <span class="material-icons" style="font-size: 16px;">palette</span>
+                        <span>Theme</span>
+                        <div class="theme-switcher">
+                            <button class="theme-btn" data-theme-value="light">Light</button>
+                            <button class="theme-btn active" data-theme-value="dark">Dark</button>
+                        </div>
+                    </div>
+                    <div class="profile-menu-divider"></div>
+                    <div class="profile-menu-info">
+                        <span>Shortcut</span>
+                        <span style="color: var(--text-secondary);">⌘⇧R</span>
+                    </div>
+                    <div class="profile-menu-info">
+                        <span>Version</span>
+                        <span style="color: var(--text-secondary);">1.5.2</span>
+                    </div>
+                    <div class="profile-menu-divider"></div>
                     <button id="menuLogoutBtn" class="profile-menu-item logout">
                         <span class="material-icons" style="font-size: 16px;">logout</span> Log Out
                     </button>
@@ -968,10 +1034,6 @@
                 </button>
             </div>
 
-            <div id="settingsSection" class="settings-section">
-                <img src="img/setting.png" alt="Settings" style="width: 16px; height: 16px; opacity: 0.7;">
-                <span>Recording Settings</span>
-            </div>
         </div>
     </div>
 
@@ -1042,15 +1104,6 @@
     <!-- ==========================================
          Settings Modal
          ========================================== -->
-    <div id="settingsModal" class="modal-overlay">
-        <div class="modal-content" style="text-align: left; width: 450px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                <h2 style="margin: 0; font-size: 17px; font-weight: 600; color: var(--text-primary);">Settings</h2>
-                <button id="closeSettingsBtn" class="btn-close">&times;</button>
-            </div>
-            <button id="saveSettingsBtn" class="btn-primary">Save Changes</button>
-        </div>
-    </div>
 
     <!-- ==========================================
          Video Player Modal

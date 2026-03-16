@@ -18,6 +18,15 @@ function registerConfigHandlers(getVideodbService) {
     return { ...config, isConnected: !!config.accessToken };
   });
 
+  ipcMain.handle('save-settings', (_event, data) => {
+    try {
+      saveUserConfig(data);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('register', async (_event, data) => {
     try {
       const { name, apiKey } = data;

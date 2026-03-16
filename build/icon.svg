@@ -13,8 +13,8 @@
   <!-- macOS icon background -->
   <rect width="1024" height="1024" rx="228" fill="#0D0B07"/>
 
-  <!-- Scale and center the 280x240 frame content to fill the icon -->
-  <g transform="translate(-406, -82) scale(2.7)">
+  <!-- Scale 3.4x and center the 280x240 frame to fill ~93% width -->
+  <g transform="translate(-644, -236) scale(3.4)">
     <!-- Frame -->
     <rect x="200" y="100" width="280" height="240" rx="20" fill="#0D0B07"/>
 

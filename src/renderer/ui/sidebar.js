@@ -20,8 +20,6 @@ const elements = {
     profileMenu: document.getElementById('profileMenu'),
     menuLogoutBtn: document.getElementById('menuLogoutBtn'),
 
-    settingsSection: document.getElementById('settingsSection'),
-
     renameRow: document.getElementById('renameRow'),
     renameInput: document.getElementById('renameInput'),
     renameSaveBtn: document.getElementById('renameSaveBtn'),
@@ -305,9 +303,20 @@ async function loadConfigToUI() {
         const menuName = document.getElementById('menuUserName');
         if (tooltip) tooltip.textContent = displayName;
         if (menuName) menuName.textContent = displayName;
+
+        // Apply saved theme
+        const theme = config.theme || 'dark';
+        applyTheme(theme);
     } catch (err) {
         console.error('Failed to load config', err);
     }
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.themeValue === theme);
+    });
 }
 
 function initProfileLogic() {
@@ -327,6 +336,15 @@ function initProfileLogic() {
 
         profileMenu.addEventListener('click', (e) => e.stopPropagation());
     }
+
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const theme = btn.dataset.themeValue;
+            applyTheme(theme);
+            await window.configAPI.saveConfig({ theme });
+        });
+    });
 
     if (menuLogoutBtn) {
         menuLogoutBtn.addEventListener('click', async () => {

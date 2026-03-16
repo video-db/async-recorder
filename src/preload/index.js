@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('recorderAPI', {
 // Config API
 contextBridge.exposeInMainWorld('configAPI', {
     getConfig: () => ipcRenderer.invoke('get-settings'),
+    saveConfig: (data) => ipcRenderer.invoke('save-settings', data),
     register: (data) => ipcRenderer.invoke('register', data),
     logout: () => ipcRenderer.invoke('recorder-logout'),
     openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url)
