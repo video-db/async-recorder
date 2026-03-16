@@ -290,6 +290,14 @@ function initSettingsLogic() {
             }
         });
     }
+
+    const footerLink = document.getElementById('footerLink');
+    if (footerLink) {
+        footerLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.configAPI.openExternalLink('https://console.videodb.io/');
+        });
+    }
 }
 
 // --- Profile ---

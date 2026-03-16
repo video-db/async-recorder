@@ -99,11 +99,13 @@ function createHistoryWindow() {
     return;
   }
 
+  const theme = getAppConfig().theme || 'dark';
+
   historyWindow = new BrowserWindow({
     width: 900,
     height: 700,
     title: 'Recording History',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme === 'light' ? '#faf9f7' : '#0c0c0d',
     webPreferences: {
       preload: PRELOAD_SCRIPT,
       contextIsolation: true,

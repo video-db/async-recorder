@@ -32,6 +32,13 @@ function getDisplayName(recording) {
 // --- Init ---
 
 async function init() {
+    // Apply saved theme
+    try {
+        const config = await window.configAPI.getConfig();
+        const theme = config.theme || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+    } catch (_) {}
+
     loadHistoryList();
 
     document.getElementById('refreshBtn')?.addEventListener('click', loadHistoryList);
