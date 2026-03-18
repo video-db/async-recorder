@@ -1,251 +1,362 @@
 <!DOCTYPE html>
-<html data-theme="dark">
+<html>
 
 <head>
     <meta charset="UTF-8">
-    <title>Recording History</title>
+    <title>Library</title>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <style>
-        [data-theme="dark"] {
-            --bg-primary: #0c0c0d;
-            --bg-secondary: #151515;
-            --bg-surface: #1b1b21;
-            --bg-hover: #242424;
-            --border: #2d2d2d;
-            --border-light: #44454c;
-            --text-primary: #f7f7f7;
-            --text-secondary: #969696;
-            --text-muted: #525252;
-            --accent: #ff4d00;
-            --accent-hover: #ff9061;
-            --success: #22c55e;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --info: #8cdeff;
-            --radius: 8px;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        [data-theme="light"] {
-            --bg-primary: #faf9f7;
-            --bg-secondary: #ffffff;
-            --bg-surface: #f0eeeb;
-            --bg-hover: #e6e4e0;
-            --border: #d9d6d0;
-            --border-light: #c9c5be;
-            --text-primary: #0c0c0d;
-            --text-secondary: #4d4d4d;
-            --text-muted: #919191;
-            --accent: #e25612;
-            --accent-hover: #c14103;
-            --success: #16a34a;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --info: #3b82f6;
-            --radius: 8px;
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            color: #f7f7f7;
+            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
         }
-
-        * { box-sizing: border-box; }
 
         body {
-            margin: 0;
-            padding: 0;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
-        /* Nav */
-        .history-nav {
-            padding: 14px 20px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
+        /* ── Header ── */
+        .history-header {
+            position: relative;
             display: flex;
             align-items: center;
-            gap: 12px;
+            padding: 38px 20px 0 10px;
+            height: 68px;
+            background: #08090C;
             -webkit-app-region: drag;
+            flex-shrink: 0;
         }
 
-        .history-nav h2 {
-            margin: 0;
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            letter-spacing: -0.01em;
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .nav-btn {
-            -webkit-app-region: no-drag;
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 6px;
+        .header-left .icon-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: color 0.15s, background 0.15s;
+            width: 28px;
+            height: 28px;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+            border-radius: 6px;
+            transition: background 0.15s, color 0.15s;
         }
 
-        .nav-btn:hover {
-            color: var(--text-primary);
-            background: var(--bg-hover);
+        .header-left .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
         }
 
-        /* Layout */
+        .header-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .header-right {
+            position: absolute;
+            top: 21px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-secondary {
+            -webkit-app-region: no-drag;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 14px;
+            height: 36px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .btn-secondary svg {
+            flex-shrink: 0;
+        }
+
+        .btn-secondary.syncing {
+            border-color: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+        }
+
+        .btn-secondary.synced {
+            border-color: #007657;
+            color: #00B686;
+            pointer-events: none;
+        }
+
+        /* ── Content area ── */
         .history-content {
             flex: 1;
             display: flex;
+            padding: 10px;
+            gap: 10px;
+            overflow: hidden;
+            background: #000000;
+        }
+
+        /* ── Sidebar ── */
+        .history-sidebar {
+            display: flex;
+            flex-direction: column;
+            width: 360px;
+            min-width: 360px;
+            background: #0F1015;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
             overflow: hidden;
         }
 
-        /* Sidebar */
-        .history-sidebar {
-            width: 280px;
-            min-width: 280px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
+        .sidebar-toolbar {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            gap: 8px;
+        }
+
+        .search-bar {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            height: 36px;
+            background: #000000;
+            border: 0.5px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            gap: 8px;
+        }
+
+        .search-bar img {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .search-bar input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        .search-bar input::placeholder {
+            color: #969696;
+        }
+
+        .sort-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 0 12px;
+            height: 36px;
+            background: #191B23;
+            border: 0.5px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+        .sort-btn:hover {
+            background: #22242e;
+        }
+
+        .sort-btn svg {
+            flex-shrink: 0;
+        }
+
+        /* ── Video list ── */
+        .video-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .video-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border: 1px solid transparent;
+            gap: 10px;
+        }
+
+        .video-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .video-item.active {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .video-item-details {
+            flex: 1;
+            min-width: 0;
             display: flex;
             flex-direction: column;
         }
 
-        .history-list-header {
-            padding: 14px 16px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border);
-        }
-
-        #historyListContainer {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px;
-        }
-
-        .history-group-header {
-            padding: 10px 8px 4px;
-            color: var(--text-muted);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .history-item {
-            padding: 10px 12px;
-            margin-bottom: 4px;
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: background 0.15s;
-            border: 1px solid transparent;
-        }
-
-        .history-item:hover {
-            background: var(--bg-hover);
-        }
-
-        .history-item.active {
-            background: var(--bg-surface);
-            border-color: var(--border-light);
-        }
-
-        .history-item-title {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 4px;
+        .video-item-title {
+            font-size: 14px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.898);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            line-height: 22px;
         }
 
-        .history-item-meta {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .video-item-time {
+            font-size: 12px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.698);
+            line-height: 17px;
         }
 
-        .history-item-time {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        /* Status badges */
+        /* ── Status badges ── */
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            font-size: 11px;
+            gap: 4px;
+            padding: 2px 6px 2px 4px;
+            border-radius: 36px;
+            font-size: 12px;
             font-weight: 500;
-            padding: 2px 8px;
-            border-radius: 10px;
+            line-height: 150%;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
-        .status-dot {
-            width: 6px;
-            height: 6px;
+        .status-badge .status-icon {
+            width: 12px;
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-badge .status-dot {
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
         }
 
-        .status-recording .status-dot { background: var(--error); animation: pulse 1.5s ease-in-out infinite; }
-        .status-recording { color: var(--error); background: rgba(239, 68, 68, 0.1); }
+        .status-done {
+            background: rgba(0, 255, 189, 0.1);
+            color: #00B686;
+        }
+        .status-done .status-dot { background: #00B686; }
 
-        .status-pending .status-dot { background: var(--warning); animation: pulse 2s ease-in-out infinite; }
-        .status-pending { color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+        .status-processing {
+            background: rgba(251, 232, 48, 0.1);
+            color: #D7C300;
+        }
+        .status-processing .status-dot { background: #D7C300; }
 
-        .status-processing .status-dot { background: var(--info); animation: pulse 2s ease-in-out infinite; }
-        .status-processing { color: var(--info); background: rgba(140, 222, 255, 0.1); }
+        .status-recording {
+            background: rgba(134, 55, 251, 0.1);
+            color: #8B3DFF;
+        }
+        .status-recording .status-dot { background: #8954D7; }
 
-        .status-ready .status-dot { background: var(--success); }
-        .status-ready { color: var(--success); background: rgba(34, 197, 94, 0.08); }
-
-        .status-failed .status-dot { background: var(--error); }
-        .status-failed { color: var(--error); background: rgba(239, 68, 68, 0.1); }
+        .status-error {
+            background: rgba(255, 54, 54, 0.1);
+            color: #EF3535;
+        }
+        .status-error .status-dot { background: #EF3535; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.35; }
         }
 
-        /* Main area */
-        .history-main {
+        .status-recording .status-dot,
+        .status-processing .status-dot {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        /* ── Player area ── */
+        .player-container {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: var(--bg-primary);
+            background: #08090C;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            overflow: hidden;
         }
 
-        /* Video header */
-        .video-header {
-            padding: 14px 20px;
-            background: var(--bg-primary);
-            border-bottom: 1px solid var(--border);
+        .player-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            gap: 16px;
+            justify-content: space-between;
+            height: 56px;
+            background: #0F1015;
+            flex-shrink: 0;
         }
 
-        .video-title-group {
+        .player-header-left {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            gap: 12px;
             flex: 1;
             min-width: 0;
         }
 
-        .video-title-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .video-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
+        .player-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #fff;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -254,7 +365,7 @@
         .edit-name-btn {
             background: none;
             border: none;
-            color: var(--text-muted);
+            color: #969696;
             cursor: pointer;
             padding: 3px;
             border-radius: 4px;
@@ -262,258 +373,396 @@
             align-items: center;
             opacity: 0;
             transition: opacity 0.15s, color 0.15s;
+            flex-shrink: 0;
         }
 
-        .video-title-row:hover .edit-name-btn {
+        .player-header-left:hover .edit-name-btn {
             opacity: 1;
         }
 
         .edit-name-btn:hover {
-            color: var(--accent);
+            color: #FF4000;
         }
 
-        .video-title-input {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            background: var(--bg-surface);
-            border: 1px solid var(--accent);
-            border-radius: 6px;
-            padding: 4px 8px;
+        .player-title-input {
+            font-size: 16px;
+            font-weight: 500;
+            color: #fff;
+            background: #191B23;
+            border: 1px solid #FF4000;
+            border-radius: 8px;
+            padding: 4px 10px;
             outline: none;
             width: 100%;
             font-family: inherit;
+            display: none;
         }
 
-        .header-right {
+        .player-header-right {
             display: flex;
             align-items: center;
-            gap: 10px;
+            padding: 10px 20px;
+            gap: 12px;
             flex-shrink: 0;
         }
 
-        .share-btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 7px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
+        .btn-share {
             display: flex;
             align-items: center;
             gap: 6px;
+            padding: 0 14px;
+            height: 36px;
+            background: #FF4000;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
             cursor: pointer;
-            transition: background 0.15s, opacity 0.15s;
+            transition: background 0.2s;
             white-space: nowrap;
         }
 
-        .share-btn:hover:not(:disabled) {
-            background: var(--accent-hover);
+        .btn-share:hover:not(:disabled):not(.processing):not(.done) {
+            background: #CC2B02;
         }
 
-        .share-btn:disabled {
+        .btn-share:disabled {
             opacity: 0.4;
             cursor: default;
         }
 
-        .share-btn:active:not(:disabled) {
+        .btn-share:active:not(:disabled) {
             transform: scale(0.97);
         }
 
-        .spinner-small {
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255,255,255,0.25);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            display: inline-block;
+        .btn-share.processing {
+            background: #FF7E32;
+            pointer-events: none;
+        }
+
+        .btn-share.done {
+            background: #007657;
+            pointer-events: none;
+        }
+
+        .btn-share .material-icons-round {
+            font-size: 16px;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
 
-        /* Player */
-        .history-player-container {
-            flex: 1;
-            background: #000;
+        .btn-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* ── Split download button ── */
+        .download-split {
+            position: relative;
+            display: flex;
+            align-items: center;
+            height: 36px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: visible;
+            transition: border-color 0.15s;
+        }
+
+        .download-split:hover {
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .download-split.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .download-main {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 12px;
+            height: 100%;
+            background: none;
+            border: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+            border-radius: 9px 0 0 9px;
+        }
+
+        .download-main:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .download-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            flex-shrink: 0;
+        }
+
+        .download-chevron {
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 300px;
+            width: 30px;
+            height: 100%;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            border-radius: 0 9px 9px 0;
+        }
+
+        .download-chevron:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+        }
+
+        .download-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 180px;
+            background: #1B1B23;
+            border: 1px solid #44454E;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            padding: 4px;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            z-index: 100;
+        }
+
+        .download-menu.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .download-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 10px;
+            background: none;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background 0.12s;
+            white-space: nowrap;
+        }
+
+        .download-menu-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .download-menu-item .material-icons-round {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* ── Video player ── */
+        .video-player-area {
+            flex: 1;
+            background: #000;
+            min-height: 0;
+            overflow: hidden;
         }
 
         video {
             width: 100%;
             height: 100%;
-            max-height: 100%;
+            object-fit: contain;
         }
 
-        /* Transcript panel */
-        .transcript-panel {
-            height: 220px;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .transcript-header {
-            padding: 10px 20px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .transcript-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-        }
-
+        /* ── Empty state ── */
         .empty-state {
             text-align: center;
-            color: var(--text-muted);
-            padding: 20px;
-            font-size: 13px;
+            color: #969696;
+            padding: 40px 20px;
+            font-size: 14px;
         }
 
-        /* Toast */
+        .empty-state-player {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: #525252;
+            font-size: 14px;
+            gap: 8px;
+        }
+
+        /* ── Toast ── */
         .toast {
             position: fixed;
-            bottom: 24px;
+            top: 12px;
             left: 50%;
-            transform: translateX(-50%) translateY(40px);
-            background: var(--bg-surface);
-            color: var(--text-primary);
-            padding: 10px 18px;
-            border-radius: var(--radius);
-            font-size: 13px;
+            transform: translateX(-50%) translateY(-12px) scale(0.97);
             display: flex;
             align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--border-light);
+            padding: 8px 10px;
+            gap: 4px;
+            height: 38px;
+            background: #1B1B23;
+            border: 1px solid #44454E;
+            box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.08);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
             opacity: 0;
-            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
             pointer-events: none;
             z-index: 1000;
+            white-space: nowrap;
         }
 
         .toast.visible {
-            transform: translateX(-50%) translateY(0);
+            transform: translateX(-50%) translateY(0) scale(1);
             opacity: 1;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-light);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-
-        /* Material Icons */
-        .material-icons {
-            font-family: 'Material Icons';
-            font-weight: normal;
-            font-style: normal;
-            font-size: 24px;
-            display: inline-block;
-            line-height: 1;
-            text-transform: none;
-            letter-spacing: normal;
-            word-wrap: normal;
-            white-space: nowrap;
-            direction: ltr;
-        }
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 
         button { cursor: pointer; }
     </style>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 
 <body>
-    <div class="history-nav">
-        <button id="closeHistoryBtn" class="nav-btn" title="Close">
-            <span class="material-icons" style="font-size: 20px;">arrow_back</span>
-        </button>
-        <h2>Recordings</h2>
-        <div style="flex:1;"></div>
-        <button id="refreshBtn" class="nav-btn" title="Refresh">
-            <span class="material-icons" style="font-size: 20px;">refresh</span>
-        </button>
+    <!-- Header -->
+    <div class="history-header">
+        <div class="header-left">
+            <button id="homeBtn" class="icon-btn" title="Close">
+                <span class="material-icons-round" style="font-size: 20px;">home</span>
+            </button>
+            <span class="header-title">Library</span>
+        </div>
+        <div class="header-right">
+            <button id="chatBarBtn" class="btn-secondary">
+                <span class="material-icons-round" style="font-size: 16px;">chat_bubble_outline</span>
+                <span>Chat with video</span>
+            </button>
+            <button id="syncBtn" class="btn-secondary">
+                <span id="syncBtnIcon" class="material-icons-round" style="font-size: 16px;">sync</span>
+                <span id="syncBtnLabel">Sync</span>
+            </button>
+        </div>
     </div>
 
+    <!-- Content -->
     <div class="history-content">
         <!-- Sidebar -->
         <div class="history-sidebar">
-            <div class="history-list-header">Library</div>
-            <div id="historyListContainer"></div>
+            <div class="sidebar-toolbar">
+                <div class="search-bar">
+                    <img src="img/search.png" alt="Search" />
+                    <input type="text" id="searchInput" placeholder="Search recordings..." />
+                </div>
+                <button class="sort-btn" id="sortBtn">
+                    <span id="sortLabel">All</span>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 8 10 12.5 14 8"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="video-list" id="videoListContainer"></div>
         </div>
 
-        <!-- Main -->
-        <div class="history-main">
-            <!-- Video Header -->
-            <div class="video-header" id="videoHeader" style="display:none;">
-                <div class="video-title-group">
-                    <div class="video-title-row" id="videoTitleRow">
-                        <span class="video-title" id="currentVideoTitle">Select a video</span>
-                        <button class="edit-name-btn" id="editNameBtn" title="Rename">
-                            <span class="material-icons" style="font-size: 14px;">edit</span>
-                        </button>
-                    </div>
-                    <input type="text" class="video-title-input" id="videoTitleInput" style="display:none;" maxlength="100" />
-                    <div id="videoStatusBadge" style="margin-top: 6px;"></div>
+        <!-- Player -->
+        <div class="player-container">
+            <div class="player-header" id="playerHeader" style="display:none;">
+                <div class="player-header-left" id="playerHeaderLeft">
+                    <span class="player-title" id="playerTitle">Select a recording</span>
+                    <button class="edit-name-btn" id="editNameBtn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#969696" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11.33 2a1.89 1.89 0 0 1 2.67 2.67L5.33 13.33 2 14l.67-3.33L11.33 2z"/>
+                        </svg>
+                    </button>
+                    <input type="text" class="player-title-input" id="playerTitleInput" maxlength="100" />
                 </div>
-                <div class="header-right">
-                    <button class="share-btn" id="shareBtn" disabled>
-                        <span class="material-icons" style="font-size: 16px;">link</span>
-                        <span id="shareBtnLabel">Share</span>
+                <div class="player-header-right">
+                    <div class="download-split disabled" id="downloadSplit">
+                        <button class="download-main" id="downloadBtn">
+                            <span class="material-icons-round" style="font-size: 16px;">download</span>
+                            <span>Download</span>
+                        </button>
+                        <span class="download-divider"></span>
+                        <button class="download-chevron" id="downloadChevronBtn">
+                            <span class="material-icons-round" style="font-size: 18px;">expand_more</span>
+                        </button>
+                        <div class="download-menu" id="downloadMenu">
+                            <button class="download-menu-item" id="downloadVideoBtn">
+                                <span class="material-icons-round">videocam</span>
+                                <span>Download Video</span>
+                            </button>
+                            <button class="download-menu-item" id="downloadTranscriptBtn">
+                                <span class="material-icons-round">description</span>
+                                <span>Download Transcript</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn-share" id="shareBtn" disabled>
+                        <span class="material-icons-round" id="shareBtnIcon">link</span>
+                        <span id="shareBtnLabel">Copy Link</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Player -->
-            <div class="history-player-container">
+            <div class="video-player-area" id="videoPlayerArea">
                 <video id="historyVideoPlayer" controls playsinline>
                     <p style="color: #fff;">Video playback not supported</p>
                 </video>
+
             </div>
 
-            <!-- Transcript -->
-            <div class="transcript-panel">
-                <div class="transcript-header">Transcript</div>
-                <div class="transcript-body" id="insightsContent">
-                    <div class="empty-state">Select a recording to view details.</div>
-                </div>
+            <!-- Empty state when no recording selected -->
+            <div class="empty-state-player" id="emptyPlayer">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#525252" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span>Select a recording to play</span>
             </div>
         </div>
     </div>
 
     <!-- Toast -->
     <div class="toast" id="toast">
-        <span class="material-icons" style="color: var(--success); font-size: 18px;">check_circle</span>
+        <span class="material-icons-round" style="font-size: 20px; color: #fff;">check</span>
         <span id="toastMessage">Link copied to clipboard</span>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="history.js" type="module"></script>
 </body>
 

@@ -255,13 +255,12 @@ function createHistoryWindow() {
     return;
   }
 
-  const theme = getAppConfig().theme || 'dark';
-
   historyWindow = new BrowserWindow({
-    width: 900,
+    width: 1120,
     height: 700,
-    title: 'Recording History',
-    backgroundColor: theme === 'light' ? '#faf9f7' : '#0c0c0d',
+    title: 'Library',
+    backgroundColor: '#000000',
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: PRELOAD_SCRIPT,
       contextIsolation: true,
@@ -386,7 +385,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'History',
+      label: 'Library',
       click: () => createHistoryWindow(),
     },
     {

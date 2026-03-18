@@ -9,11 +9,11 @@ let activeStreamUrl = null;
 let refreshInterval = null;
 
 const STATUS_MAP = {
-    recording:  { label: 'Recording',    cls: 'status-recording' },
-    pending:    { label: 'Processing',   cls: 'status-pending' },
-    processing: { label: 'Generating transcription', cls: 'status-processing' },
-    ready:      { label: 'Ready',        cls: 'status-ready' },
-    failed:     { label: 'Failed',       cls: 'status-failed' },
+    recording:  { label: 'Recording',   cls: 'status-recording' },
+    pending:    { label: 'Processing',   cls: 'status-processing' },
+    processing: { label: 'Processing',   cls: 'status-processing' },
+    ready:      { label: 'Done',         cls: 'status-done' },
+    failed:     { label: 'Error',        cls: 'status-error' },
 };
 
 function getStatusInfo(status) {
@@ -29,27 +29,24 @@ function getDisplayName(recording) {
     return 'Untitled Recording';
 }
 
+function formatDuration(recording) {
+    if (recording.created_at) {
+        return new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return '';
+}
+
 // --- Init ---
 
 async function init() {
-    // Apply saved theme
-    try {
-        const config = await window.configAPI.getConfig();
-        const theme = config.theme || 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
-    } catch (_) {}
-
     loadHistoryList();
 
-    document.getElementById('refreshBtn')?.addEventListener('click', async () => {
-        await window.recorderAPI.syncPendingRecordings();
-        loadHistoryList();
-    });
-    document.getElementById('closeHistoryBtn')?.addEventListener('click', () => window.close());
+    document.getElementById('syncBtn')?.addEventListener('click', handleSync);
+    document.getElementById('homeBtn')?.addEventListener('click', () => window.close());
     document.getElementById('shareBtn')?.addEventListener('click', handleShare);
     document.getElementById('editNameBtn')?.addEventListener('click', () => startNameEdit());
 
-    const input = document.getElementById('videoTitleInput');
+    const input = document.getElementById('playerTitleInput');
     if (input) {
         input.addEventListener('blur', () => commitNameEdit());
         input.addEventListener('keydown', (e) => {
@@ -57,12 +54,45 @@ async function init() {
             if (e.key === 'Escape') { cancelNameEdit(); }
         });
     }
+
+    // Download split button
+    const downloadChevron = document.getElementById('downloadChevronBtn');
+    const downloadMenu = document.getElementById('downloadMenu');
+    if (downloadChevron && downloadMenu) {
+        downloadChevron.addEventListener('click', (e) => {
+            e.stopPropagation();
+            downloadMenu.classList.toggle('visible');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.download-split')) {
+                downloadMenu.classList.remove('visible');
+            }
+        });
+    }
+    document.getElementById('downloadBtn')?.addEventListener('click', () => handleDownloadVideo());
+    document.getElementById('downloadVideoBtn')?.addEventListener('click', () => {
+        document.getElementById('downloadMenu')?.classList.remove('visible');
+        handleDownloadVideo();
+    });
+    document.getElementById('downloadTranscriptBtn')?.addEventListener('click', () => {
+        document.getElementById('downloadMenu')?.classList.remove('visible');
+        handleDownloadTranscript();
+    });
+
+    // Search (stub — filters list client-side by name)
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        document.querySelectorAll('.video-item').forEach(item => {
+            const title = item.querySelector('.video-item-title')?.textContent.toLowerCase() || '';
+            item.style.display = title.includes(query) ? '' : 'none';
+        });
+    });
 }
 
 // --- List ---
 
 async function loadHistoryList() {
-    const listContainer = document.getElementById('historyListContainer');
+    const listContainer = document.getElementById('videoListContainer');
     if (!listContainer) return;
 
     listContainer.innerHTML = '<div class="empty-state">Loading...</div>';
@@ -79,16 +109,7 @@ async function loadHistoryList() {
         recordings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         listContainer.innerHTML = '';
 
-        const grouped = bucketRecordings(recordings);
-        for (const [groupName, items] of Object.entries(grouped)) {
-            if (items.length === 0) continue;
-            const header = document.createElement('div');
-            header.className = 'history-group-header';
-            header.textContent = groupName;
-            listContainer.appendChild(header);
-
-            items.forEach(rec => listContainer.appendChild(createHistoryListItem(rec)));
-        }
+        recordings.forEach(rec => listContainer.appendChild(createVideoListItem(rec)));
 
         // Auto-select first or preserve selection
         const toSelect = recordings.find(r => r.id === activeRecordingId) || recordings[0];
@@ -96,7 +117,7 @@ async function loadHistoryList() {
 
         scheduleAutoRefresh(recordings);
     } catch (error) {
-        listContainer.innerHTML = `<div class="empty-state" style="color:var(--error)">Failed to load: ${error.message}</div>`;
+        listContainer.innerHTML = `<div class="empty-state" style="color:#EF3535">Failed to load: ${error.message}</div>`;
     }
 }
 
@@ -110,45 +131,36 @@ function scheduleAutoRefresh(recordings) {
     }
 }
 
-function bucketRecordings(recordings) {
-    const buckets = { "Today": [], "Yesterday": [], "Earlier": [] };
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-
-    recordings.forEach(rec => {
-        if (!rec.created_at) { buckets["Earlier"].push(rec); return; }
-        const d = new Date(rec.created_at);
-        const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        if (dateOnly.getTime() === today.getTime()) buckets["Today"].push(rec);
-        else if (dateOnly.getTime() === yesterday.getTime()) buckets["Yesterday"].push(rec);
-        else buckets["Earlier"].push(rec);
-    });
-    return buckets;
-}
-
-function createHistoryListItem(recording) {
+function createVideoListItem(recording) {
     const div = document.createElement('div');
-    div.className = 'history-item';
+    div.className = 'video-item';
     div.dataset.id = recording.id;
     if (recording.id === activeRecordingId) div.classList.add('active');
 
     const name = getDisplayName(recording);
-    const timeStr = recording.created_at
-        ? new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : '';
+    const timeStr = formatDuration(recording);
     const status = getStatusInfo(recording.insights_status);
 
-    div.innerHTML = `
-        <div class="history-item-title">${name}</div>
-        <div class="history-item-meta">
-            <span class="history-item-time">${timeStr}</span>
-            <span class="status-badge ${status.cls}">
-                <span class="status-dot"></span>
-                ${status.label}
-            </span>
-        </div>
-    `;
+    // Use textContent for name to prevent XSS
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'video-item-title';
+    titleSpan.textContent = name;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'video-item-time';
+    timeSpan.textContent = timeStr;
+
+    const details = document.createElement('div');
+    details.className = 'video-item-details';
+    details.appendChild(titleSpan);
+    details.appendChild(timeSpan);
+
+    const badge = document.createElement('span');
+    badge.className = `status-badge ${status.cls}`;
+    badge.innerHTML = `<span class="status-icon"><span class="status-dot"></span></span>${status.label}`;
+
+    div.appendChild(details);
+    div.appendChild(badge);
 
     div.addEventListener('click', () => selectRecording(recording));
     return div;
@@ -160,21 +172,25 @@ function selectRecording(recording) {
     activeRecordingId = recording.id;
     activeRecording = recording;
     updateActiveItemStyle();
-    loadVideo(recording);
-    updateHeader(recording);
-    updateTranscriptPanel(recording);
+    showPlayer(recording);
+    updatePlayerHeader(recording);
 }
 
 function updateActiveItemStyle() {
-    document.querySelectorAll('.history-item').forEach(item => {
+    document.querySelectorAll('.video-item').forEach(item => {
         item.classList.toggle('active', Number(item.dataset.id) === activeRecordingId);
     });
 }
 
 // --- Player ---
 
-function loadVideo(recording) {
+function showPlayer(recording) {
     const video = document.getElementById('historyVideoPlayer');
+    const emptyPlayer = document.getElementById('emptyPlayer');
+    const playerArea = document.getElementById('videoPlayerArea');
+    if (emptyPlayer) emptyPlayer.style.display = 'none';
+    if (playerArea) playerArea.style.display = '';
+
     if (!video) return;
 
     // Skip reload if the same stream is already playing
@@ -201,33 +217,29 @@ function loadVideo(recording) {
     }
 }
 
-// --- Header ---
+// --- Player Header ---
 
-function updateHeader(recording) {
-    const header = document.getElementById('videoHeader');
-    const title = document.getElementById('currentVideoTitle');
-    const titleRow = document.getElementById('videoTitleRow');
-    const titleInput = document.getElementById('videoTitleInput');
-    const badge = document.getElementById('videoStatusBadge');
-    const shareBtn = document.getElementById('shareBtn');
+function updatePlayerHeader(recording) {
+    const header = document.getElementById('playerHeader');
+    const title = document.getElementById('playerTitle');
+    const titleInput = document.getElementById('playerTitleInput');
+    const downloadSplit = document.getElementById('downloadSplit');
 
     if (header) header.style.display = 'flex';
 
     // Title
-    if (title) title.textContent = getDisplayName(recording);
-    if (titleRow) titleRow.style.display = 'flex';
+    if (title) {
+        title.textContent = getDisplayName(recording);
+        title.style.display = '';
+    }
     if (titleInput) titleInput.style.display = 'none';
 
-    // Status badge
-    if (badge) {
-        const status = getStatusInfo(recording.insights_status);
-        badge.innerHTML = `<span class="status-badge ${status.cls}"><span class="status-dot"></span>${status.label}</span>`;
-    }
+    // Share button — enabled when video is ready
+    setShareState(recording.video_id ? 'default' : 'disabled');
 
-    // Share button — only enabled when video is ready
-    if (shareBtn) {
-        shareBtn.disabled = !recording.video_id;
-        document.getElementById('shareBtnLabel').textContent = 'Share';
+    // Download split — enabled when stream URL exists
+    if (downloadSplit) {
+        downloadSplit.classList.toggle('disabled', !recording.stream_url);
     }
 }
 
@@ -235,11 +247,13 @@ function updateHeader(recording) {
 
 function startNameEdit() {
     if (!activeRecording) return;
-    const titleRow = document.getElementById('videoTitleRow');
-    const titleInput = document.getElementById('videoTitleInput');
-    if (!titleRow || !titleInput) return;
+    const title = document.getElementById('playerTitle');
+    const editBtn = document.getElementById('editNameBtn');
+    const titleInput = document.getElementById('playerTitleInput');
+    if (!title || !titleInput) return;
 
-    titleRow.style.display = 'none';
+    title.style.display = 'none';
+    if (editBtn) editBtn.style.display = 'none';
     titleInput.style.display = 'block';
     titleInput.value = getDisplayName(activeRecording);
     titleInput.focus();
@@ -247,20 +261,22 @@ function startNameEdit() {
 }
 
 async function commitNameEdit() {
-    const titleRow = document.getElementById('videoTitleRow');
-    const titleInput = document.getElementById('videoTitleInput');
-    if (!titleRow || !titleInput || !activeRecording) return;
+    const title = document.getElementById('playerTitle');
+    const editBtn = document.getElementById('editNameBtn');
+    const titleInput = document.getElementById('playerTitleInput');
+    if (!title || !titleInput || !activeRecording) return;
 
     const newName = titleInput.value.trim();
-    titleRow.style.display = 'flex';
+    title.style.display = '';
+    if (editBtn) editBtn.style.display = '';
     titleInput.style.display = 'none';
 
     if (newName && newName !== getDisplayName(activeRecording)) {
         activeRecording.name = newName;
-        document.getElementById('currentVideoTitle').textContent = newName;
+        title.textContent = newName;
 
         // Update the sidebar item
-        const item = document.querySelector(`.history-item[data-id="${activeRecording.id}"] .history-item-title`);
+        const item = document.querySelector(`.video-item[data-id="${activeRecording.id}"] .video-item-title`);
         if (item) item.textContent = newName;
 
         await window.recorderAPI.updateRecordingName(activeRecording.id, newName);
@@ -268,69 +284,123 @@ async function commitNameEdit() {
 }
 
 function cancelNameEdit() {
-    const titleRow = document.getElementById('videoTitleRow');
-    const titleInput = document.getElementById('videoTitleInput');
-    if (titleRow) titleRow.style.display = 'flex';
+    const title = document.getElementById('playerTitle');
+    const editBtn = document.getElementById('editNameBtn');
+    const titleInput = document.getElementById('playerTitleInput');
+    if (title) title.style.display = '';
+    if (editBtn) editBtn.style.display = '';
     if (titleInput) titleInput.style.display = 'none';
 }
 
 // --- Share ---
 
-async function handleShare() {
-    const shareBtn = document.getElementById('shareBtn');
+function setShareState(state) {
+    const btn = document.getElementById('shareBtn');
+    const icon = document.getElementById('shareBtnIcon');
     const label = document.getElementById('shareBtnLabel');
-    if (!shareBtn || !activeRecording?.video_id) return;
+    if (!btn || !icon || !label) return;
 
-    // Enter loading state
-    shareBtn.disabled = true;
-    label.innerHTML = '<span class="spinner-small"></span> Generating...';
+    btn.classList.remove('processing', 'done');
+    btn.disabled = false;
+
+    switch (state) {
+        case 'default':
+            icon.textContent = 'link';
+            label.textContent = 'Copy Link';
+            break;
+        case 'processing':
+            btn.classList.add('processing');
+            icon.textContent = '';
+            const spinner = document.createElement('span');
+            spinner.className = 'btn-spinner';
+            icon.appendChild(spinner);
+            label.textContent = 'Generating link...';
+            break;
+        case 'done':
+            btn.classList.add('done');
+            icon.textContent = 'check';
+            label.textContent = 'Link Copied';
+            break;
+        case 'disabled':
+            icon.textContent = 'link';
+            label.textContent = 'Copy Link';
+            btn.disabled = true;
+            break;
+    }
+}
+
+async function handleShare() {
+    if (!activeRecording?.video_id) return;
+
+    setShareState('processing');
 
     try {
         const result = await window.recorderAPI.getShareUrl(activeRecording.video_id);
         if (result.success && (result.playerUrl || result.streamUrl)) {
             const url = result.playerUrl || result.streamUrl;
             await navigator.clipboard.writeText(url);
+            setShareState('done');
             showToast('Link copied to clipboard');
+            setTimeout(() => setShareState('default'), 2500);
         } else {
             showToast(result.error || 'Could not generate link');
+            setShareState('default');
         }
     } catch (err) {
         showToast('Failed to generate link');
+        setShareState('default');
     }
-
-    // Restore button
-    label.innerHTML = 'Share';
-    shareBtn.disabled = false;
 }
 
-// --- Transcript ---
+// --- Sync ---
 
-function updateTranscriptPanel(recording) {
-    const panel = document.getElementById('insightsContent');
-    if (!panel) return;
+function setSyncState(state) {
+    const btn = document.getElementById('syncBtn');
+    const icon = document.getElementById('syncBtnIcon');
+    const label = document.getElementById('syncBtnLabel');
+    if (!btn || !icon || !label) return;
 
-    if (recording.insights_status === 'ready' && recording.insights) {
-        try {
-            const data = typeof recording.insights === 'string'
-                ? JSON.parse(recording.insights) : recording.insights;
-            if (data?.transcript) {
-                panel.innerHTML = `<div style="line-height:1.7; color:var(--text-secondary); font-size:13px;">
-                    ${data.transcript.replace(/\n/g, '<br>')}
-                </div>`;
-                return;
-            }
-        } catch (e) { /* fall through */ }
+    btn.classList.remove('syncing', 'synced');
+
+    switch (state) {
+        case 'default':
+            icon.textContent = 'sync';
+            label.textContent = 'Sync';
+            break;
+        case 'syncing':
+            btn.classList.add('syncing');
+            icon.textContent = '';
+            const spinner = document.createElement('span');
+            spinner.className = 'btn-spinner';
+            icon.appendChild(spinner);
+            label.textContent = 'Syncing...';
+            break;
+        case 'synced':
+            btn.classList.add('synced');
+            icon.textContent = 'check';
+            label.textContent = 'Synced';
+            break;
     }
+}
 
-    const status = getStatusInfo(recording.insights_status);
-    const isProcessing = ['recording', 'pending', 'processing'].includes(recording.insights_status);
+async function handleSync() {
+    setSyncState('syncing');
 
-    panel.innerHTML = `
-        <div class="empty-state">
-            ${isProcessing ? '<div class="spinner-small" style="margin: 0 auto 10px; border-color: var(--border-light); border-top-color: var(--text-muted);"></div>' : ''}
-            <div>${status.label}${isProcessing ? '...' : ''}</div>
-        </div>
-    `;
+    try {
+        const result = await window.recorderAPI.syncPendingRecordings();
+        if (result.success) {
+            setSyncState('synced');
+            showToast('Recordings synced');
+            loadHistoryList();
+            setTimeout(() => setSyncState('default'), 2500);
+        } else {
+            showToast(result.error || 'Sync failed');
+            setSyncState('default');
+        }
+    } catch (err) {
+        showToast('Sync failed');
+        setSyncState('default');
+    }
 }
 
 // --- Toast ---
@@ -342,6 +412,20 @@ function showToast(message) {
     msg.textContent = message;
     toast.classList.add('visible');
     setTimeout(() => toast.classList.remove('visible'), 2500);
+}
+
+// --- Download ---
+
+function handleDownloadVideo() {
+    if (!activeRecording?.stream_url) return;
+    // Phase 1 stub — backend integration later
+    showToast('Download video started');
+}
+
+function handleDownloadTranscript() {
+    if (!activeRecording) return;
+    // Phase 1 stub — backend integration later
+    showToast('Download transcript started');
 }
 
 // Start

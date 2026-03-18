@@ -75,9 +75,9 @@ If you downloaded the pre-built app from the links above:
 - System tray icon with recording state and context menu
 - Native toast notifications for recording events
 - Quick rename prompt after each recording
-- Recording history with pipeline status tracking (Recording → Processing → Transcription → Ready)
-- Auto-indexing with transcript generation and subtitles
-- On-demand share link generation
+- Library page with sidebar list, search, and inline video player
+- Copy Link with stateful feedback (generating → copied → toast)
+- Sync button to resolve pending recordings from server
 - In-app video playback (HLS)
 
 ## Development Setup
@@ -101,8 +101,9 @@ On first launch, grant microphone and screen recording permissions, then enter y
 1. **Connect** — Enter your name and API key on first launch
 2. **Record** — Click "Start Recording" to capture screen, mic, and system audio
 3. **Camera** — Toggle the camera bubble overlay from source controls
-4. **Review** — Click the history icon to browse past recordings, view transcripts, and share links
-5. **Share** — Click "Share" on any recording to generate a fresh link via the VideoDB API
+4. **Library** — Open the Library to browse recordings, play them inline, and manage downloads
+5. **Share** — Click "Copy Link" on any recording to generate and copy a share link
+6. **Download** — Use the split download button to save the video file or transcript
 
 ## Architecture
 
@@ -193,7 +194,7 @@ src/
 │       └── insights.service.js # Transcript + subtitle indexing
 ├── renderer/                   # Renderer scripts (context-isolated)
 │   ├── renderer.js             # Main window UI
-│   ├── history.js              # History window + HLS player
+│   ├── history.js              # Library window — list, player, download, share, sync
 │   ├── camera.js               # Camera bubble
 │   ├── pages/                  # HTML pages
 │   └── styles/                 # CSS

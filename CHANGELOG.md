@@ -2,6 +2,7 @@
 
 ## [2.0.0] - 2026-03-19
 
+### Floating Bar
 - Replaced main window with a minimal floating bottom bar
 - Click-through transparent areas so the bar doesn't block apps behind it
 - Display picker as a separate floating popup with multi-monitor support
@@ -10,6 +11,18 @@
 - Tooltips on all bar controls
 - Auto-show login on auth failure; logout in system tray
 - Extracted permissions and onboarding into separate modal windows
+
+### Library Page Redesign
+- Redesigned Library page with sidebar + inline video player layout
+- macOS-native title bar with traffic lights integration
+- Status badges: Recording (purple), Processing (yellow), Done (green), Error (red)
+- Split download button with dropdown (Download Video / Download Transcript)
+- Copy Link button with stateful feedback (default → generating → copied + toast)
+- Sync button with stateful feedback (default → syncing → synced + toast)
+- Client-side search filtering on recording names
+- Inline rename with pencil edit button
+- Centered video player with native controls
+- Toast notifications slide in from top with subtle animation
 
 ## [1.5.2] - 2026-03-17
 
