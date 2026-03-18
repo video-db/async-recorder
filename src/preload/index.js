@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('recorderAPI', {
     syncPendingRecordings: () => ipcRenderer.invoke('sync-pending-recordings'),
     getShareUrl: (videoId) => ipcRenderer.invoke('get-share-url', videoId),
     updateRecordingName: (id, name) => ipcRenderer.invoke('update-recording-name', id, name),
+    listDevices: () => ipcRenderer.invoke('list-devices'),
 
     // Electron specific permission checks logic (optional fallback)
     checkMicPermission: () => ipcRenderer.invoke('check-mic-permission'),
@@ -22,6 +23,10 @@ contextBridge.exposeInMainWorld('recorderAPI', {
     toggleCamera: (show) => ipcRenderer.invoke(show ? 'camera-show' : 'camera-hide'),
     openSystemSettings: (type) => ipcRenderer.invoke('open-system-settings', type),
     openHistoryWindow: () => ipcRenderer.invoke('open-history-window'),
+    showPermissionsModal: () => ipcRenderer.invoke('show-permissions-modal'),
+    showOnboardingModal: () => ipcRenderer.invoke('show-onboarding-modal'),
+    modalComplete: (result) => ipcRenderer.send('modal-complete', result),
+    hideBar: () => ipcRenderer.send('hide-bar'),
     notifyRecordingState: (recording) => ipcRenderer.send('recording-state-changed', recording),
     showNotification: (title, body) => ipcRenderer.send('show-notification', { title, body }),
 });

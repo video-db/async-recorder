@@ -19,7 +19,7 @@ const {
  * @param {Function} getMainWindow - returns the main BrowserWindow
  */
 function registerCaptureHandlers(getVideodbService, getMainWindow) {
-  ipcMain.handle('recorder-start-recording', async (_event, clientSessionId, _config) => {
+  ipcMain.handle('recorder-start-recording', async (_event, clientSessionId, config) => {
     try {
       console.log(`Starting recording (client reference: ${clientSessionId})`);
 
@@ -91,24 +91,34 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
         return { success: false, error: 'Failed to list capture channels' };
       }
 
-      // 6. Select channels
+      // 6. Select channels (use renderer selections or fall back to defaults)
+      const selectedChannels = config || {};
       const captureChannels = [];
 
-      const micChannel = channels.mics.default;
+      const micId = selectedChannels.micId;
+      const micChannel = micId
+        ? channels.mics.find(ch => ch.id === micId) || channels.mics.default
+        : channels.mics.default;
       if (micChannel) {
         captureChannels.push({ channelId: micChannel.id, type: 'audio', store: true });
         console.log(`Selected mic channel: ${micChannel.id}`);
       }
 
-      const systemAudioChannel = channels.systemAudio.default;
+      const audioId = selectedChannels.audioId;
+      const systemAudioChannel = audioId
+        ? channels.systemAudio.find(ch => ch.id === audioId) || channels.systemAudio.default
+        : channels.systemAudio.default;
       if (systemAudioChannel) {
         captureChannels.push({ channelId: systemAudioChannel.id, type: 'audio', store: true });
         console.log(`Selected system audio channel: ${systemAudioChannel.id}`);
       }
 
-      const displayChannel = channels.displays.default;
+      const displayId = selectedChannels.displayId;
+      const displayChannel = displayId
+        ? channels.displays.find(ch => ch.id === displayId) || channels.displays.default
+        : channels.displays.default;
       if (displayChannel) {
-        captureChannels.push({ channelId: displayChannel.id, type: 'video', store: true });
+        captureChannels.push({ channelId: displayChannel.id, type: 'video', store: true, isPrimary: true });
         console.log(`Selected display channel: ${displayChannel.id}`);
       }
 
@@ -227,6 +237,43 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
       return { success: true };
     } catch (error) {
       console.error('Error resuming tracks:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // --- List available devices ---
+  ipcMain.handle('list-devices', async () => {
+    try {
+      const apiKey = _getCurrentUserApiKey();
+      if (!apiKey) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const videodbService = getVideodbService();
+      const sessionToken = await getSessionToken(videodbService, apiKey);
+      if (!sessionToken) {
+        return { success: false, error: 'Failed to get session token' };
+      }
+
+      if (app.isPackaged) applyVideoDBPatches();
+      const tempOptions = { sessionToken };
+      if (process.env.VIDEODB_API_URL) tempOptions.apiUrl = process.env.VIDEODB_API_URL;
+
+      const tempClient = new CaptureClient(tempOptions);
+      try {
+        const channels = await tempClient.listChannels();
+
+        const mics = channels.mics.map(ch => ({ id: ch.id, name: ch.name }));
+        const systemAudio = channels.systemAudio.map(ch => ({ id: ch.id, name: ch.name }));
+        const displays = channels.displays.map(ch => ({ id: ch.id, name: ch.name }));
+
+        console.log(`[list-devices] mics: ${mics.length}, audio: ${systemAudio.length}, displays: ${displays.length}`);
+        return { success: true, mics, systemAudio, displays };
+      } finally {
+        await tempClient.shutdown().catch(() => {});
+      }
+    } catch (error) {
+      console.error('Error listing devices:', error);
       return { success: false, error: error.message };
     }
   });

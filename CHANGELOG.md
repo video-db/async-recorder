@@ -1,6 +1,16 @@
 # Changelog
 
-## [1.5.2] - 2026-03-16
+## [2.0.0] - 2026-03-18
+
+- Replaced main window with a floating bottom bar (always-on-top, transparent, content-protected)
+- Extracted permissions and onboarding flows into separate modal windows
+- Added source toggle pills with live device discovery (mic, system audio, camera, screen)
+- Display selector dropdown with multi-monitor support
+- Recording state UI: icon-only toggles, timer, stop button, pause/resume per track
+- Camera bubble toggle independent of recording state
+- Renamed sidebar.js to bar.js, cleaned up unused assets
+
+## [1.5.2] - 2026-03-17
 
 - Redesigned main window with a compact, modern layout
 - Recording timer with live duration display
@@ -9,9 +19,11 @@
 - System tray icon with recording state and context menu
 - Native notifications for recording events
 - Light and dark theme support
+- Share link now includes subtitles when available
+- Replaced WebSocket with polling for reliable recording export
+- Refresh button in history syncs pending recordings from server
 - Pre-built DMG downloads for macOS (arm64 + x64)
 - Updated VideoDB SDK to v0.2.2
-- Bug fixes and stability improvements
 
 ## [1.5.1] - 2025-02-24
 

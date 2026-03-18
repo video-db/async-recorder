@@ -2,10 +2,11 @@
  * Main Renderer Process
  */
 import { addLog } from './utils/logger.js';
-import { initSidebar, setSessionActive, setSessionLoading, resetSessionUI, getActiveSessionId } from './ui/sidebar.js';
+import { initBar, setSessionActive, setSessionLoading, resetSessionUI, getActiveSessionId, loadDevices, getSelectedChannels } from './ui/bar.js';
 
-import { initOnboarding } from './ui/onboarding.js';
-import { initPermissionsFlow } from './ui/permissions.js';
+// Permissions and onboarding are now separate modal windows
+// import { initOnboarding } from './ui/onboarding.js';
+// import { initPermissionsFlow } from './ui/permissions.js';
 // import { initHistoryLogic } from './src/ui/history.js'; // Moved to history.html
 
 // Global Event Handler
@@ -52,6 +53,15 @@ if (!window.hasRegisteredRecorderEvents) {
         }
         break;
       }
+      case 'modal:complete':
+        console.log('[Modal Complete]', data);
+        if (data.type === 'onboarding') {
+          loadDevices();
+        }
+        // Re-enable start button after modals complete
+        const btnStart = document.getElementById('btn-start-session');
+        if (btnStart) btnStart.disabled = false;
+        break;
       case 'error':
         addLog(`Error: ${data.message || 'Unknown error'}`, 'error');
         break;
@@ -69,7 +79,8 @@ async function startSessionFlow() {
   setSessionLoading();
 
   try {
-    const result = await window.recorderAPI.startSession(sessionId);
+    const channels = getSelectedChannels();
+    const result = await window.recorderAPI.startSession(sessionId, channels);
 
     if (!result.success) {
       addLog(`Failed to start: ${result.error}`, 'error');
@@ -86,25 +97,36 @@ async function startSessionFlow() {
   try {
     addLog('🚀 App initializing...');
 
-    // Init Modules
+    // Init floating bar (wires up button handlers)
+    console.log('Initializing bar...');
+    await initBar(startSessionFlow);
 
+    // Check permissions — open modal window if not granted
+    const micOk = (await window.recorderAPI.checkMicPermission()) === 'granted';
+    const screenOk = (await window.recorderAPI.checkScreenPermission()) === 'granted';
 
-    // History is now separate window
-    // initHistoryLogic();
+    if (!micOk || !screenOk) {
+      console.log('Permissions missing, opening modal...');
+      const btnStart = document.getElementById('btn-start-session');
+      if (btnStart) btnStart.disabled = true;
+      await window.recorderAPI.showPermissionsModal();
+    }
 
-    // 1. Check Permissions (Blocking)
-    console.log('Checking permissions...');
-    await initPermissionsFlow();
-    console.log('Permissions check done.');
+    // Check onboarding — open modal window if no API key
+    const config = await window.configAPI.getConfig();
+    if (!config.accessToken) {
+      console.log('No API key, opening onboarding modal...');
+      const btnStart = document.getElementById('btn-start-session');
+      if (btnStart) btnStart.disabled = true;
+      await window.recorderAPI.showOnboardingModal();
+    }
 
-    // 2. Check onboarding status
-    console.log('Checking onboarding...');
-    await initOnboarding();
-    console.log('Onboarding check done.');
-
-    // Init Sidebar (replaces config/recording screens)
-    console.log('Initializing sidebar...');
-    await initSidebar(startSessionFlow);
+    // Load available devices (requires auth)
+    const configCheck = await window.configAPI.getConfig();
+    if (configCheck.accessToken) {
+      console.log('Loading available devices...');
+      await loadDevices();
+    }
 
     addLog('Ready');
     console.log('Initialization complete.');

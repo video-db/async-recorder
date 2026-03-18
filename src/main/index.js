@@ -28,6 +28,7 @@ const { registerAllHandlers } = require('./ipc');
 let mainWindow = null;
 let cameraWindow = null;
 let historyWindow = null;
+let modalWindow = null;
 let tray = null;
 let videodbService = null;
 let isShuttingDown = false;
@@ -38,22 +39,41 @@ let isRecording = false;
 // ============================================================================
 
 function createMainWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const barWidth = 940;
+  const windowHeight = 200;  // extra transparent space above bar for dropdowns/popovers
+  const marginBottom = 8;
+
   mainWindow = new BrowserWindow({
-    width: 380,
-    height: 290,
-    minHeight: 250,
-    maxHeight: 360,
-    minWidth: 340,
-    maxWidth: 480,
-    resizable: true,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    width: barWidth,
+    height: windowHeight,
+    x: Math.round((screenWidth - barWidth) / 2),
+    y: screenHeight - windowHeight - marginBottom,
+    transparent: true,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    skipTaskbar: true,
+    focusable: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: PRELOAD_SCRIPT,
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setContentProtection(true);
+
+  // Restore dock icon — setVisibleOnAllWorkspaces can hide it on some macOS versions
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.show();
+  }
 
   mainWindow.loadFile(path.join(RENDERER_DIR, 'index.html'));
 }
@@ -117,6 +137,35 @@ function createHistoryWindow() {
   historyWindow.on('closed', () => { historyWindow = null; });
 }
 
+function createModalWindow(page) {
+  if (modalWindow && !modalWindow.isDestroyed()) {
+    modalWindow.focus();
+    return modalWindow;
+  }
+
+  const theme = getAppConfig().theme || 'dark';
+  const heights = { permissions: 400, onboarding: 360 };
+
+  modalWindow = new BrowserWindow({
+    width: 480,
+    height: heights[page] || 400,
+    center: true,
+    resizable: false,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 16 },
+    backgroundColor: theme === 'light' ? '#faf9f7' : '#0c0c0d',
+    webPreferences: {
+      preload: PRELOAD_SCRIPT,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  modalWindow.loadFile(path.join(RENDERER_DIR, `${page}.html`));
+  modalWindow.on('closed', () => { modalWindow = null; });
+  return modalWindow;
+}
+
 // ============================================================================
 // System Tray
 // ============================================================================
@@ -168,8 +217,11 @@ function createTray() {
 
   tray.on('click', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+      }
     }
   });
 }
@@ -177,13 +229,13 @@ function createTray() {
 function updateTrayMenu() {
   if (!tray) return;
   tray.setImage(createTrayIcon(isRecording));
+  const barVisible = mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible();
   const menu = Menu.buildFromTemplate([
     {
       label: isRecording ? 'Stop Recording' : 'Start Recording',
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
-          mainWindow.show();
         }
       },
     },
@@ -193,11 +245,14 @@ function updateTrayMenu() {
       click: () => createHistoryWindow(),
     },
     {
-      label: 'Show Window',
+      label: barVisible ? 'Hide Bar' : 'Show Bar',
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show();
-          mainWindow.focus();
+          if (mainWindow.isVisible()) {
+            mainWindow.hide();
+          } else {
+            mainWindow.show();
+          }
         }
       },
     },
@@ -353,6 +408,34 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
+  ipcMain.handle('show-permissions-modal', () => {
+    createModalWindow('permissions');
+    return { success: true };
+  });
+
+  ipcMain.handle('show-onboarding-modal', () => {
+    createModalWindow('onboarding');
+    return { success: true };
+  });
+
+  ipcMain.on('modal-complete', (_event, result) => {
+    if (modalWindow && !modalWindow.isDestroyed()) {
+      modalWindow.close();
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recorder-event', {
+        event: 'modal:complete',
+        data: result,
+      });
+    }
+  });
+
+  ipcMain.on('hide-bar', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
+  });
+
   ipcMain.on('recording-state-changed', (_event, recording) => {
     isRecording = recording;
     updateTrayMenu();
@@ -373,7 +456,6 @@ app.whenReady().then(async () => {
   globalShortcut.register('CommandOrControl+Shift+R', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
-      mainWindow.show();
     }
   });
 });

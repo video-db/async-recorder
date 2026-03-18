@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Permissions — Async Recorder</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* Theme Variables */
+        [data-theme="dark"] {
+            --bg-primary: #0c0c0d;
+            --bg-secondary: #151515;
+            --bg-surface: #1b1b21;
+            --bg-hover: #242424;
+            --border: #2d2d2d;
+            --border-light: #44454c;
+            --text-primary: #f7f7f7;
+            --text-secondary: #969696;
+            --text-muted: #525252;
+            --accent: #ff4d00;
+            --accent-hover: #ff9061;
+            --success: #22c55e;
+            --error: #ef4444;
+            --info: #8cdeff;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #faf9f7;
+            --bg-secondary: #ffffff;
+            --bg-surface: #f0eeeb;
+            --bg-hover: #e6e4e0;
+            --border: #d9d6d0;
+            --border-light: #c9c5be;
+            --text-primary: #0c0c0d;
+            --text-secondary: #4d4d4d;
+            --text-muted: #919191;
+            --accent: #e25612;
+            --accent-hover: #c14103;
+            --success: #16a34a;
+            --error: #dc2626;
+            --info: #2563eb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            -webkit-app-region: drag;
+        }
+
+        button { -webkit-app-region: no-drag; }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 32px;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            text-align: center;
+        }
+
+        .modal-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .permission-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 0 0 16px;
+            text-align: left;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .permission-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-surface);
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .permission-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .permission-icon {
+            font-size: 20px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-hover);
+            border-radius: 50%;
+            color: var(--text-muted);
+        }
+
+        .permission-text h3 {
+            margin: 0 0 2px;
+            font-size: 13px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .permission-text p {
+            margin: 0;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .perm-btn {
+            background: var(--info);
+            color: #fff;
+            padding: 7px 14px;
+            border-radius: 6px;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .perm-btn:hover { background: #2563eb; }
+
+        .perm-btn.granted {
+            background: var(--success);
+            pointer-events: none;
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: 12px;
+            min-height: 18px;
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="modal-title">Permissions Required</div>
+        <div class="modal-subtitle">App requires microphone and screen access.</div>
+        <div class="permission-list">
+            <div class="permission-item">
+                <div class="permission-info">
+                    <div class="permission-icon"><span class="material-icons">mic</span></div>
+                    <div class="permission-text">
+                        <h3>Microphone</h3>
+                        <p>Required to capture audio from meetings.</p>
+                    </div>
+                </div>
+                <button class="perm-btn" id="btn-grant-mic">Grant Access</button>
+            </div>
+            <div class="permission-item">
+                <div class="permission-info">
+                    <div class="permission-icon"><span class="material-icons">monitor</span></div>
+                    <div class="permission-text">
+                        <h3>Screen Recording</h3>
+                        <p>Required to record meeting video.</p>
+                    </div>
+                </div>
+                <button class="perm-btn" id="btn-grant-screen">Grant Access</button>
+            </div>
+        </div>
+        <div class="error-message" id="permissionError"></div>
+    </div>
+
+    <script type="module">
+        import { permissionUtil } from './utils/permissions.js';
+
+        const btnMic = document.getElementById('btn-grant-mic');
+        const btnScreen = document.getElementById('btn-grant-screen');
+        const errorMsg = document.getElementById('permissionError');
+
+        const updateItemUI = (btn, granted) => {
+            if (granted) {
+                btn.textContent = 'Granted';
+                btn.classList.add('granted');
+                btn.disabled = true;
+            } else {
+                btn.textContent = 'Grant Access';
+                btn.classList.remove('granted');
+                btn.disabled = false;
+            }
+        };
+
+        const updateUI = async () => {
+            const micStatus = await permissionUtil.check('mic');
+            const screenStatus = await permissionUtil.check('screen');
+
+            updateItemUI(btnMic, micStatus.granted);
+            updateItemUI(btnScreen, screenStatus.granted);
+
+            const allGranted = micStatus.granted && screenStatus.granted;
+            if (allGranted) {
+                window.recorderAPI.modalComplete({ type: 'permissions', success: true });
+                return true;
+            }
+            return false;
+        };
+
+        btnMic.addEventListener('click', async () => {
+            if (btnMic.textContent === 'Open Settings') {
+                const result = await window.recorderAPI.openSystemSettings('mic');
+                if (!result || !result.success) {
+                    errorMsg.textContent = 'Go to System Settings -> Privacy & Security -> Microphone to enable access.';
+                }
+                return;
+            }
+
+            try {
+                btnMic.disabled = true;
+                btnMic.textContent = 'Requesting...';
+                errorMsg.textContent = '';
+
+                await permissionUtil.request('mic');
+                const done = await updateUI();
+
+                if (!done) {
+                    btnMic.disabled = false;
+                    btnMic.textContent = 'Open Settings';
+                    btnMic.classList.remove('granted');
+                    errorMsg.textContent = 'Permission denied. Opening System Settings...';
+                    const result = await window.recorderAPI.openSystemSettings('mic');
+                    if (!result || !result.success) {
+                        errorMsg.textContent = 'Go to System Settings -> Privacy & Security -> Microphone to enable access.';
+                    }
+                }
+            } catch (e) {
+                btnMic.disabled = false;
+                btnMic.textContent = 'Open Settings';
+                errorMsg.textContent = 'Error: ' + e.message;
+            }
+        });
+
+        btnScreen.addEventListener('click', async () => {
+            if (btnScreen.textContent === 'Open Settings') {
+                const result = await window.recorderAPI.openSystemSettings('screen');
+                if (!result || !result.success) {
+                    errorMsg.textContent = 'Go to System Settings -> Privacy & Security -> Screen Recording to enable access.';
+                }
+                return;
+            }
+
+            try {
+                btnScreen.disabled = true;
+                btnScreen.textContent = 'Requesting...';
+                errorMsg.textContent = '';
+
+                await permissionUtil.request('screen');
+                const done = await updateUI();
+
+                if (!done) {
+                    btnScreen.disabled = false;
+                    btnScreen.textContent = 'Open Settings';
+                    btnScreen.classList.remove('granted');
+                    errorMsg.textContent = 'Permission denied. Opening System Settings...';
+                    const result = await window.recorderAPI.openSystemSettings('screen');
+                    if (!result || !result.success) {
+                        errorMsg.textContent = 'Go to System Settings -> Privacy & Security -> Screen Recording to enable access.';
+                    }
+                }
+            } catch (e) {
+                btnScreen.disabled = false;
+                btnScreen.textContent = 'Open Settings';
+                errorMsg.textContent = 'Error: ' + e.message;
+            }
+        });
+
+        // Initial check
+        const allGranted = await updateUI();
+
+        // Poll for system setting changes
+        if (!allGranted) {
+            const poller = setInterval(async () => {
+                if (document.hidden) return;
+                const done = await updateUI();
+                if (done) clearInterval(poller);
+            }, 1000);
+        }
+    </script>
+</body>
+
+</html>
