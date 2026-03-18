@@ -366,12 +366,8 @@ function createTray() {
   updateTrayMenu();
 
   tray.on('click', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        mainWindow.show();
-      }
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
     }
   });
 }
@@ -379,7 +375,6 @@ function createTray() {
 function updateTrayMenu() {
   if (!tray) return;
   tray.setImage(createTrayIcon(isRecording));
-  const barVisible = mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible();
   const menu = Menu.buildFromTemplate([
     {
       label: isRecording ? 'Stop Recording' : 'Start Recording',
@@ -393,18 +388,6 @@ function updateTrayMenu() {
     {
       label: 'History',
       click: () => createHistoryWindow(),
-    },
-    {
-      label: barVisible ? 'Hide Bar' : 'Show Bar',
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          if (mainWindow.isVisible()) {
-            mainWindow.hide();
-          } else {
-            mainWindow.show();
-          }
-        }
-      },
     },
     {
       label: 'Logout',
