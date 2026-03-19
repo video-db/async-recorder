@@ -8,29 +8,25 @@
 
 <!-- PROJECT LOGO -->
 <br />
-<p align="center">
-  <a href="https://videodb.io/">
-    <img src="src/renderer/img/bloom_dark.png" alt="Bloom" width="80" height="">
-  </a>
-
-  <h1 align="center">Bloom</h1>
-
-  <p align="center">
-    A Loom-style screen recording app built with Electron and the VideoDB Capture SDK.
-    <br />
-    <a href="https://docs.videodb.io"><strong>Explore the docs »</strong></a>
-    <br />
-    <br />
-    <a href="#features">View Features</a>
-    ·
-    <a href="#download">Download</a>
-    ·
-    <a href="https://github.com/video-db/async-recorder/issues">Report Bug</a>
-  </p>
-</p>
+<table align="center" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td valign="middle"><a href="https://videodb.io/"><img src="assets/videodb-logo.jpeg" alt="VideoDB" height="52"></a></td>
+    <td valign="middle"><img src="assets/add.svg" alt="+" height="16"></td>
+    <td valign="middle"><a href="https://videodb.io/"><img src="assets/Colour_Black Wordmark.png" alt="Bloom" height="52"></a></td>
+  </tr>
+</table>
 
 <p align="center">
-  <img src="assets/Bloom.png" alt="Bloom" width="400">
+  A Loom-style screen recording app built with Electron and the VideoDB Capture SDK.
+  <br />
+  <a href="https://docs.videodb.io"><strong>Explore the docs »</strong></a>
+  <br />
+  <br />
+  <a href="#features">View Features</a>
+  ·
+  <a href="#download">Download</a>
+  ·
+  <a href="https://github.com/video-db/async-recorder/issues">Report Bug</a>
 </p>
 
 ---
@@ -152,22 +148,22 @@ graph LR
     WS -->|"session events"| UPLOAD
     API -->|"index / transcribe"| IDX
 
-    classDef purple fill:#2d2563,stroke:#7c6af7,stroke-width:1.5px,color:#c4b8f8
-    classDef teal   fill:#0d3d38,stroke:#2dd4bf,stroke-width:1.5px,color:#81e8d8
-    classDef coral  fill:#3d1a20,stroke:#f38ba8,stroke-width:1.5px,color:#f9c0cb
-    classDef green  fill:#0d2e1a,stroke:#a6e3a1,stroke-width:1.5px,color:#b8f0c0
-    classDef db     fill:#1a1a2e,stroke:#7c6af7,stroke-width:1.5px,color:#c4b8f8
+    classDef orange fill:#2e1a08,stroke:#EC5B16,stroke-width:1.5px,color:#f5a36a
+    classDef amber  fill:#2e2008,stroke:#E8A317,stroke-width:1.5px,color:#f5d080
+    classDef red    fill:#2e0d08,stroke:#FF4000,stroke-width:1.5px,color:#ff8a60
+    classDef green  fill:#0d2e1a,stroke:#4CAF50,stroke-width:1.5px,color:#8ed4a0
+    classDef db     fill:#1a1208,stroke:#EC5B16,stroke-width:1.5px,color:#f5a36a
 
-    class R,M,SDK purple
-    class CC,WS,API,BIN teal
-    class SC,MIC,SA coral
+    class R,M,SDK orange
+    class CC,WS,API,BIN amber
+    class SC,MIC,SA red
     class UPLOAD,IDX,TRX,STREAM green
     class DB db
 
-    style EA fill:#12102a,stroke:#7c6af7,stroke-width:2px,color:#a89ef5
-    style VS fill:#071f1c,stroke:#2dd4bf,stroke-width:2px,color:#5ecfc4
-    style LC fill:#1f0d10,stroke:#f38ba8,stroke-width:2px,color:#f0a0b0
-    style VC fill:#071810,stroke:#a6e3a1,stroke-width:2px,color:#8ed4a0
+    style EA fill:#1a0e04,stroke:#EC5B16,stroke-width:2px,color:#f5a36a
+    style VS fill:#1a1504,stroke:#E8A317,stroke-width:2px,color:#f5d080
+    style LC fill:#1a0804,stroke:#FF4000,stroke-width:2px,color:#ff8a60
+    style VC fill:#071810,stroke:#4CAF50,stroke-width:2px,color:#8ed4a0
 ```
 
 **Recording flow:** The app creates a `CaptureClient` which spawns a native binary to capture screen, mic, and system audio. Chunks are uploaded to VideoDB Cloud in real-time. A WebSocket connection delivers session events (started, stopped, exported) back to the app.
@@ -271,8 +267,6 @@ MIT
 ---
 
 <p align="center">Made with ❤️ by the <a href="https://videodb.io">VideoDB</a> team</p>
-
----
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [electron-shield]: https://img.shields.io/badge/Electron-39.0-47848F?style=for-the-badge&logo=electron&logoColor=white
