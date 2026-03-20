@@ -35,14 +35,14 @@
 
 ## What is Bloom?
 
-Bloom is a local-first screen recorder built for agentic workflows. Recordings are no longer files. They are inputs for AI.
+Bloom is a local-first screen recorder built for agentic workflows. 
 
 - **Record locally** — No lock-in, your files stay yours
 - **Upload to VideoDB** — Automatic cloud sync with AI processing. 
 - **Find any moment** — Transcripts, visual embeddings, metadata.
-- **Let agents work on your recordings** — Query via APIs or agent frameworks like claude code
+- **Let agents work on your recordings** — Query via APIs or agent frameworks like claude code and access your recordings data.
 
-This is not just recording. This is turning context into action.
+Recordings are no longer files, they are inputs for AI.
 
 ---
 
