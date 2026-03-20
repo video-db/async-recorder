@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="#download">Download</a>
+  <a href="## Installation">Install</a>
   ·
   <a href="#features">Features</a>
   ·
@@ -33,71 +33,47 @@
 
 ---
 
-## Why Bloom exists
-
-Most screen recorders still operate on subscriptions.
-
-- Pay monthly even if you barely use it
-- Lose access when billing stops
-- Recordings become dead files
-
-**In an AI world, this model breaks.**
-
-Your recordings should be usable by agents, not locked behind a UI.
-
----
-
 ## What is Bloom?
 
-Bloom is a local-first, open source screen recorder built for agentic workflows.
+Bloom is a local-first screen recorder built for agentic workflows. Recordings are no longer files. They are inputs for AI.
 
 - **Record locally** — No lock-in, your files stay yours
-- **Upload to VideoDB** — Automatic cloud sync with AI processing
-- **Make recordings searchable** — Transcripts, embeddings, metadata
-- **Let agents work on your recordings** — Query via APIs or agent frameworks
+- **Upload to VideoDB** — Automatic cloud sync with AI processing. 
+- **Find any moment** — Transcripts, visual embeddings, metadata.
+- **Let agents work on your recordings** — Query via APIs or agent frameworks like claude code
 
 This is not just recording. This is turning context into action.
 
 ---
 
-## The shift
+## Installation
 
-Recordings are no longer files. They are inputs for AI.
+Run this in your terminal to install Bloom:
 
-- **Search them** — Find any moment by keyword
-- **Query them** — Ask questions, get structured answers
-- **Generate insights** — Summaries, action items, key decisions
-- **Automate workflows** — Plug into Claude Code, Cursor, and agent frameworks
-
----
-
-## Example workflow
-
-```
-1. Record a session
-2. Upload to VideoDB
-3. Pull into Claude Code
-4. Ask:
-
-   "Summarize key decisions"
-   "Extract action items"
-   "Find where I mentioned X"
-
-→ Get structured outputs instantly
+```bash
+curl -fsSL https://artifacts.videodb.io/bloom/install | bash
 ```
 
----
+This will automatically detect your Mac architecture, download the right build, and install it to `/Applications`.
 
-## Download
+<details>
+<summary>Manual install</summary>
 
 - **Apple Silicon (M1/M2/M3/M4)**: [bloom-2.0.0-arm64.dmg](https://artifacts.videodb.io/bloom/bloom-2.0.0-arm64.dmg)
 - **Apple Intel**: [bloom-2.0.0-x64.dmg](https://artifacts.videodb.io/bloom/bloom-2.0.0-x64.dmg)
 
+1. Mount the DMG and drag Bloom to your Applications folder
+2. Open Terminal and run `xattr -cr /Applications/Bloom.app`
+3. Launch the app from Applications or Spotlight
+
+</details>
+
 <p>
-  <em>Pre-built DMGs are available for macOS. Windows users can run from source — see <a href="#development-setup">Development Setup</a>. Linux support coming soon.</em>
+  <em>Pre-built builds are available for macOS. Linux support coming soon.</em>
 </p>
 
 ---
+
 
 ## Features
 
@@ -119,35 +95,6 @@ Recordings are no longer files. They are inputs for AI.
 
 ---
 
-## Installation (Pre-built App)
-
-If you downloaded the pre-built app from the links above:
-
-1. **Mount the DMG** and drag Bloom to your Applications folder
-
-2. **Remove quarantine attributes** to allow the app to run:
-   ```bash
-   xattr -cr /Applications/Bloom.app
-   ```
-
-3. **Launch the app** from Applications or Spotlight
-
-4. **Grant system permissions** when prompted (Microphone and Screen Recording are required)
-
-5. **Enter your VideoDB API key** on first launch ([console.videodb.io](https://console.videodb.io))
-
----
-
-## Usage
-
-1. **Connect** — Enter your name and API key on first launch
-2. **Record** — Click "Start Recording" to capture screen, mic, and system audio
-3. **Camera** — Toggle the camera bubble overlay from source controls
-4. **Library** — Open the Library to browse recordings, play them inline, and manage downloads
-5. **Share** — Click "Copy Link" on any recording to generate and copy a share link
-6. **Download** — Use the split download button to save the video file or transcript
-
----
 
 ## Architecture
 
@@ -162,13 +109,13 @@ graph LR
         R["Renderer UI"]
         M["Main Process"]
         DB[("SQLite")]
-        SDK["VideoDB Node SDK"]
         R -->|IPC| M
         M --> DB
         M --> SDK
     end
 
     subgraph VS["  VideoDB SDK  "]
+        SDK["Node SDK"]
         CC["CaptureClient"]
         WS["WebSocket"]
         API["Connection API"]
@@ -184,7 +131,7 @@ graph LR
         BIN --> SC & MIC & SA
     end
 
-    subgraph VC["  VideoDB Cloud  "]
+    subgraph VC["  VideoDB  "]
         UPLOAD["Upload & Export"]
         STREAM["HLS Streaming"]
         IDX["Indexing"]
@@ -203,8 +150,8 @@ graph LR
     classDef green  fill:#0d2e1a,stroke:#4CAF50,stroke-width:1.5px,color:#8ed4a0
     classDef db     fill:#1a1208,stroke:#EC5B16,stroke-width:1.5px,color:#f5a36a
 
-    class R,M,SDK orange
-    class CC,WS,API,BIN amber
+    class R,M orange
+    class SDK,CC,WS,API,BIN amber
     class SC,MIC,SA red
     class UPLOAD,IDX,TRX,STREAM green
     class DB db
@@ -311,23 +258,11 @@ build/
 └── icon.icns                   # App icon
 ```
 
----
-
-## Configuration
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VIDEODB_API_URL` | Override the VideoDB API base URL (for dev/staging) | Production API |
-
-Set in a `.env` file at the project root, or as an environment variable.
-
----
 
 ## Troubleshooting
 
 ### Permissions denied
 - **macOS**: System Settings → Privacy & Security → enable Screen Recording / Microphone / Camera
-- **Windows**: Settings → Privacy → enable Microphone / Camera access
 
 ### Camera not showing
 - Toggle camera off/on in source controls
