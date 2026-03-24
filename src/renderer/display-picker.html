@@ -25,13 +25,29 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            background: rgba(20, 20, 20, 0.95);
+            background: var(--picker-bg);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: none;
             border-radius: 10px;
             box-shadow: none;
             overflow-y: auto;
+        }
+
+        :root, [data-theme="dark"] {
+            --picker-bg: rgba(20, 20, 20, 0.95);
+            --picker-text: #969696;
+            --picker-text-hover: #f7f7f7;
+            --picker-text-selected: #FFFFFF;
+            --picker-hover: rgba(255, 255, 255, 0.06);
+        }
+
+        [data-theme="light"] {
+            --picker-bg: rgba(245, 245, 247, 0.95);
+            --picker-text: #6e6e73;
+            --picker-text-hover: #1d1d1f;
+            --picker-text-selected: #1d1d1f;
+            --picker-hover: rgba(0, 0, 0, 0.05);
         }
 
         .picker-item {
@@ -43,7 +59,7 @@
             padding: 8px 14px;
             border: none;
             background: none;
-            color: #969696;
+            color: var(--picker-text);
             text-align: left;
             font-family: inherit;
             font-size: 12.5px;
@@ -54,12 +70,12 @@
         }
 
         .picker-item:hover {
-            background: rgba(255, 255, 255, 0.06);
-            color: #f7f7f7;
+            background: var(--picker-hover);
+            color: var(--picker-text-hover);
         }
 
         .picker-item.selected {
-            color: #FFFFFF;
+            color: var(--picker-text-selected);
         }
 
         .check-mark {

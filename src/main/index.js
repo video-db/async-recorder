@@ -35,7 +35,7 @@ let removeDisplayPickerParentListeners = null;
 let tray = null;
 let videodbService = null;
 let isShuttingDown = false;
-let isRecording = false;
+let recordingState = 'idle'; // 'idle' | 'gearing-up' | 'recording'
 
 // ============================================================================
 // Window Creation
@@ -210,7 +210,8 @@ function openDisplayPicker(payload) {
     displayPickerWindow.loadFile(path.join(RENDERER_DIR, 'display-picker.html'));
     displayPickerWindow.webContents.once('did-finish-load', () => {
       if (!displayPickerWindow || displayPickerWindow.isDestroyed()) return;
-      displayPickerWindow.webContents.send('display-picker:init', { displays, selectedDisplayId });
+      const theme = getAppConfig().theme || 'dark';
+      displayPickerWindow.webContents.send('display-picker:init', { displays, selectedDisplayId, theme });
       displayPickerWindow.show();
       displayPickerWindow.focus();
     });
@@ -383,7 +384,7 @@ function createTray() {
 
 function updateTrayMenu() {
   if (!tray) return;
-  tray.setImage(createTrayIcon(isRecording));
+  tray.setImage(createTrayIcon(recordingState === 'recording'));
 
   const isAuthenticated = !!getAppConfig().accessToken;
 
@@ -459,7 +460,8 @@ function updateTrayMenu() {
         },
       },
       {
-        label: isRecording ? 'Stop Recording' : 'Start Recording',
+        label: recordingState === 'recording' ? 'Stop Recording' : recordingState === 'gearing-up' ? 'Starting...' : 'Start Recording',
+        enabled: recordingState !== 'gearing-up',
         click: () => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
@@ -492,7 +494,7 @@ function updateTrayMenu() {
   }
 
   tray.setContextMenu(Menu.buildFromTemplate(template));
-  tray.setToolTip(isRecording ? 'Bloom — Recording...' : 'Bloom');
+  tray.setToolTip(recordingState === 'recording' ? 'Bloom — Recording...' : recordingState === 'gearing-up' ? 'Bloom — Starting...' : 'Bloom');
 }
 
 // ============================================================================
@@ -703,7 +705,7 @@ app.whenReady().then(async () => {
       mainWindow.hide();
     }
     // Hide camera bubble when bar is closed and not recording
-    if (!isRecording && cameraWindow && !cameraWindow.isDestroyed()) {
+    if (recordingState === 'idle' && cameraWindow && !cameraWindow.isDestroyed()) {
       cameraWindow.hide();
     }
     updateTrayMenu();
@@ -716,9 +718,24 @@ app.whenReady().then(async () => {
     updateTrayMenu();
   });
 
-  ipcMain.on('recording-state-changed', (_event, recording) => {
-    isRecording = recording;
+  ipcMain.on('recording-state-changed', (_event, state) => {
+    recordingState = state;
     updateTrayMenu();
+    // Forward state to history window
+    if (historyWindow && !historyWindow.isDestroyed()) {
+      historyWindow.webContents.send('recording-state-update', state);
+    }
+  });
+
+  ipcMain.on('toggle-recording', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
+    }
+  });
+
+  ipcMain.handle('get-recording-state', () => {
+    return recordingState;
   });
 
   ipcMain.on('show-notification', (_event, { title, body }) => {
@@ -758,7 +775,21 @@ app.on('before-quit', async (event) => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+    return;
+  }
+  // If not authenticated, re-show the onboarding modal
+  const isAuthenticated = !!getAppConfig().accessToken;
+  if (!isAuthenticated && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recorder-event', { event: 'shortcut:toggle-recording', data: {} });
+    // The renderer will check auth and show onboarding if needed
+    mainWindow.webContents.executeJavaScript(`
+      window.recorderAPI.showOnboardingModal();
+    `).catch(() => {});
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+  }
 });
 
 // --- Process signals ---

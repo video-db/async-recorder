@@ -27,14 +27,14 @@ function getDisplayName(recording) {
     if (recording.name) return recording.name;
     if (recording.created_at) {
         const d = new Date(recording.created_at);
-        return 'Recording at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return 'Recording at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     }
     return 'Untitled Recording';
 }
 
 function formatDuration(recording) {
     if (recording.created_at) {
-        return new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     }
     return '';
 }
@@ -49,6 +49,9 @@ async function init() {
     });
 
     loadHistoryList();
+
+    // Recording button — init state and wire up
+    initRecordingButton();
 
     // Auto-sync pending recordings when library opens
     syncPendingRecordings();
@@ -446,7 +449,7 @@ async function handleShare() {
 function setChatState(state) {
     const btn = document.getElementById('chatBarBtn');
     if (!btn) return;
-    const icon = btn.querySelector('.material-icons-round');
+    const icon = btn.querySelector('.material-symbols-rounded');
     const label = btn.querySelector('span:last-child');
     if (!icon || !label) return;
 
@@ -592,5 +595,124 @@ async function handleDownloadTranscript() {
     }
 }
 
+// --- Recording Button ---
+
+function setRecordingBtnState(state) {
+    const btn = document.getElementById('recordBtn');
+    const icon = document.getElementById('recordBtnIcon');
+    if (!btn || !icon) return;
+
+    btn.classList.remove('recording', 'gearing-up');
+    btn.disabled = false;
+
+    switch (state) {
+        case 'idle':
+            icon.textContent = 'radio_button_checked';
+            btn.dataset.tooltip = 'Start a recording';
+            break;
+        case 'gearing-up':
+            btn.classList.add('gearing-up');
+            btn.disabled = true;
+            icon.textContent = 'progress_activity';
+            btn.dataset.tooltip = 'Starting recording...';
+            break;
+        case 'recording':
+            btn.classList.add('recording');
+            icon.textContent = 'stop_circle';
+            btn.dataset.tooltip = 'Stop Recording';
+            break;
+    }
+}
+
+async function initRecordingButton() {
+    const btn = document.getElementById('recordBtn');
+    if (!btn) return;
+
+    // Get initial state
+    const state = await window.recorderAPI.getRecordingState();
+    setRecordingBtnState(state || 'idle');
+
+    // Listen for state changes
+    window.recorderAPI.onRecordingStateChanged((state) => {
+        setRecordingBtnState(state);
+    });
+
+    // Click handler
+    btn.addEventListener('click', () => {
+        window.recorderAPI.toggleRecording();
+    });
+}
+
+// --- Settings Popover ---
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.configAPI.saveConfig({ theme });
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+}
+
+async function initSettings() {
+    const popover = document.getElementById('settingsPopover');
+    const settingsBtn = document.getElementById('settingsBtn');
+
+    // Toggle popover
+    settingsBtn?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const isOpen = popover.classList.contains('visible');
+        if (isOpen) {
+            popover.classList.remove('visible');
+            return;
+        }
+        // Load current data
+        const config = await window.configAPI.getConfig();
+        const nameInput = document.getElementById('settingsName');
+        if (nameInput) nameInput.value = config.userName || '';
+        const currentTheme = config.theme || 'dark';
+        document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+        });
+        popover.classList.add('visible');
+    });
+
+    // Close on outside click (mousedown works in drag regions too)
+    document.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('.settings-popover-wrap')) {
+            popover?.classList.remove('visible');
+        }
+    });
+
+    // Name — save on blur
+    const nameInput = document.getElementById('settingsName');
+    if (nameInput) {
+        nameInput.addEventListener('blur', () => {
+            const name = nameInput.value.trim();
+            if (name) window.configAPI.saveConfig({ userName: name });
+        });
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
+        });
+    }
+
+    // Theme toggle
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    });
+
+    // Apply saved theme on load
+    const config = await window.configAPI.getConfig();
+    applyTheme(config.theme || 'dark');
+
+    // Listen for theme changes from other windows (don't save back to avoid loop)
+    window.configAPI.onThemeChanged((newTheme) => {
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === newTheme);
+        });
+    });
+}
+
 // Start
 init();
+initSettings();

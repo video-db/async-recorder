@@ -59,8 +59,8 @@ This will automatically detect your Mac architecture, download the right build, 
 <details>
 <summary>Manual install</summary>
 
-- **Apple Silicon (M1/M2/M3/M4)**: [bloom-2.0.0-arm64.dmg](https://artifacts.videodb.io/bloom/bloom-2.0.0-arm64.dmg)
-- **Apple Intel**: [bloom-2.0.0-x64.dmg](https://artifacts.videodb.io/bloom/bloom-2.0.0-x64.dmg)
+- **Apple Silicon (M1/M2/M3/M4)**: [bloom-2.1.0-arm64.dmg](https://artifacts.videodb.io/bloom/bloom-2.1.0-arm64.dmg)
+- **Apple Intel**: [bloom-2.1.0-x64.dmg](https://artifacts.videodb.io/bloom/bloom-2.1.0-x64.dmg)
 
 1. Mount the DMG and drag Bloom to your Applications folder
 2. Open Terminal and run `xattr -cr /Applications/Bloom.app`

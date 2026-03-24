@@ -23,19 +23,19 @@ if (!window.hasRegisteredRecorderEvents) {
       case 'recording:started':
         addLog(`Recording started: ${data.sessionId}`, 'success');
         setSessionActive(data.sessionId);
-        window.recorderAPI.notifyRecordingState(true);
+        window.recorderAPI.notifyRecordingState('recording');
         window.recorderAPI.showNotification('Recording Started', 'Screen and audio capture is active.');
         break;
       case 'recording:stopped':
         addLog(`Recording stopped: ${data.sessionId}`, 'info');
         resetSessionUI();
-        window.recorderAPI.notifyRecordingState(false);
+        window.recorderAPI.notifyRecordingState('idle');
         window.recorderAPI.showNotification('Recording Stopped', 'Your recording is being processed.');
         break;
       case 'recording:error':
         addLog(`Recording error: ${data.error || data.message || 'Unknown error'}`, 'error');
         resetSessionUI();
-        window.recorderAPI.notifyRecordingState(false);
+        window.recorderAPI.notifyRecordingState('idle');
         break;
       case 'upload:progress':
         console.log(`Upload progress: ${data.channelId} - ${Math.round((data.progress || 0) * 100)}%`);
@@ -90,6 +90,7 @@ async function startSessionFlow() {
 
   addLog('Starting recording...', 'info');
   setSessionLoading();
+  window.recorderAPI.notifyRecordingState('gearing-up');
 
   try {
     const channels = getSelectedChannels();
@@ -98,10 +99,12 @@ async function startSessionFlow() {
     if (!result.success) {
       addLog(`Failed to start: ${result.error}`, 'error');
       resetSessionUI();
+      window.recorderAPI.notifyRecordingState('idle');
     }
   } catch (error) {
     addLog(`Start error: ${error.message}`, 'error');
     resetSessionUI();
+    window.recorderAPI.notifyRecordingState('idle');
   }
 }
 
@@ -109,6 +112,16 @@ async function startSessionFlow() {
 (async () => {
   try {
     addLog('App initializing...');
+
+    // Apply saved theme
+    const savedConfig = await window.configAPI.getConfig();
+    const theme = savedConfig.theme || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    // Listen for theme changes from other windows
+    window.configAPI.onThemeChanged((newTheme) => {
+        document.documentElement.setAttribute('data-theme', newTheme);
+    });
 
     // Init floating bar (wires up button handlers)
     console.log('Initializing bar...');

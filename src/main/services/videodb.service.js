@@ -6,9 +6,12 @@ const { connect, AuthenticationError } = require('videodb');
  * VideoDB service layer — wraps the Node SDK for server-side operations.
  * Maintains a connection cache keyed by API key.
  */
+const BLOOM_COLLECTION_NAME = 'Bloom Recordings';
+
 class VideoDBService {
   constructor(options = {}) {
     this._connections = new Map();
+    this._collectionIds = new Map(); // apiKey → collectionId cache
     this._baseUrl = options.baseUrl || null; // optional override for dev
   }
 
@@ -25,6 +28,32 @@ class VideoDBService {
     const conn = connect(config);
     this._connections.set(apiKey, conn);
     return conn;
+  }
+
+  /**
+   * Get or create the "Bloom Recordings" collection. Caches the ID per API key.
+   */
+  async _getBloomCollection(apiKey) {
+    const conn = this._getConnection(apiKey);
+
+    // Return cached collection
+    if (this._collectionIds.has(apiKey)) {
+      return conn.getCollection(this._collectionIds.get(apiKey));
+    }
+
+    // Search existing collections
+    const collections = await conn.getCollections();
+    let bloomColl = collections.find((c) => c.name === BLOOM_COLLECTION_NAME);
+
+    if (!bloomColl) {
+      bloomColl = await conn.createCollection(
+        BLOOM_COLLECTION_NAME,
+        'Screen recordings captured with Bloom',
+      );
+    }
+
+    this._collectionIds.set(apiKey, bloomColl.id);
+    return bloomColl;
   }
 
   /**
@@ -75,14 +104,14 @@ class VideoDBService {
    * @returns {Promise<{sessionId: string, collectionId: string, endUserId: string, status: string}>}
    */
   async createCaptureSession(apiKey, { endUserId, metadata }) {
-    const conn = this._getConnection(apiKey);
-    const session = await conn.createCaptureSession({
+    const coll = await this._getBloomCollection(apiKey);
+    const session = await coll.createCaptureSession({
       endUserId,
       metadata,
     });
     return {
       sessionId: session.id,
-      collectionId: session.collectionId,
+      collectionId: coll.id,
       endUserId: session.endUserId,
       status: session.status,
     };
@@ -96,8 +125,7 @@ class VideoDBService {
    * @returns {Promise<{status: string, exportedVideoId: string|null}>}
    */
   async getCaptureSession(apiKey, sessionId) {
-    const conn = this._getConnection(apiKey);
-    const coll = await conn.getCollection();
+    const coll = await this._getBloomCollection(apiKey);
     const session = await coll.getCaptureSession(sessionId);
     return {
       status: session.status,
@@ -115,8 +143,7 @@ class VideoDBService {
    * @returns {Promise<{streamUrl: string|null, playerUrl: string|null}>}
    */
   async getShareUrl(apiKey, videoId) {
-    const conn = this._getConnection(apiKey);
-    const coll = await conn.getCollection();
+    const coll = await this._getBloomCollection(apiKey);
     const video = await coll.getVideo(videoId);
     // generateStream returns the latest stream (with subtitles if indexed)
     // and updates video.playerUrl to match
@@ -134,8 +161,7 @@ class VideoDBService {
    * @returns {Promise<{url: string, name: string}>}
    */
   async getVideoDownloadUrl(apiKey, videoId) {
-    const conn = this._getConnection(apiKey);
-    const coll = await conn.getCollection();
+    const coll = await this._getBloomCollection(apiKey);
     const video = await coll.getVideo(videoId);
     const result = await video.download();
     return { url: result.url || result.downloadUrl, name: result.name || `${videoId}.mp4` };
@@ -148,8 +174,7 @@ class VideoDBService {
    * @returns {Promise<string>}
    */
   async getTranscriptText(apiKey, videoId) {
-    const conn = this._getConnection(apiKey);
-    const coll = await conn.getCollection();
+    const coll = await this._getBloomCollection(apiKey);
     const video = await coll.getVideo(videoId);
     return await video.getTranscriptText();
   }
@@ -159,6 +184,7 @@ class VideoDBService {
    */
   clearAll() {
     this._connections.clear();
+    this._collectionIds.clear();
   }
 }
 
