@@ -50,5 +50,6 @@ contextBridge.exposeInMainWorld('configAPI', {
     saveConfig: (data) => ipcRenderer.invoke('save-settings', data),
     register: (data) => ipcRenderer.invoke('register', data),
     logout: () => ipcRenderer.invoke('recorder-logout'),
-    openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url)
+    openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
+    onThemeChanged: (callback) => ipcRenderer.on('theme-changed', (_event, theme) => callback(theme))
 });

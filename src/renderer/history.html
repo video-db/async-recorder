@@ -31,9 +31,17 @@
             --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.4);
             --shadow-toast: 0px 1px 2px rgba(0, 0, 0, 0.08);
             --tooltip-bg: rgba(0, 0, 0, 0.85);
+            --tooltip-text: #fff;
+            --tooltip-shadow: none;
             --input-bg: #000000;
             --menu-border: #44454E;
             --sort-radio-border: #2F2F2F;
+            --icon-filter: brightness(0) invert(0.75);
+            --icon-filter-muted: brightness(0) invert(0.5);
+            --spinner-border: rgba(255, 255, 255, 0.1);
+            --spinner-top: rgba(255, 255, 255, 0.5);
+            --active-accent-border: rgba(255, 64, 0, 0.2);
+            --active-accent-bg: rgba(255, 64, 0, 0.06);
         }
 
         [data-theme="light"] {
@@ -58,10 +66,18 @@
             --shadow-dropdown: 0px 17px 17px rgba(0, 0, 0, 0.06), 0px 4px 9px rgba(0, 0, 0, 0.08);
             --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.15);
             --shadow-toast: 0px 1px 4px rgba(0, 0, 0, 0.12);
-            --tooltip-bg: rgba(0, 0, 0, 0.75);
+            --tooltip-bg: rgba(255, 255, 255, 0.95);
+            --tooltip-text: #1d1d1f;
+            --tooltip-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
             --input-bg: #ffffff;
             --menu-border: #d2d2d7;
             --sort-radio-border: #c7c7cc;
+            --icon-filter: brightness(0) invert(0.25);
+            --icon-filter-muted: brightness(0) invert(0.4);
+            --spinner-border: rgba(0, 0, 0, 0.1);
+            --spinner-top: rgba(0, 0, 0, 0.4);
+            --active-accent-border: rgba(255, 64, 0, 0.25);
+            --active-accent-bg: rgba(255, 64, 0, 0.06);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -104,6 +120,11 @@
             color: var(--text-secondary);
         }
 
+        .header-icon {
+            flex-shrink: 0;
+            filter: var(--icon-filter);
+        }
+
         .header-right {
             position: absolute;
             top: 38px;
@@ -138,7 +159,8 @@
             right: 0;
             padding: 4px 8px;
             background: var(--tooltip-bg);
-            color: #fff;
+            color: var(--tooltip-text);
+            box-shadow: var(--tooltip-shadow);
             font-size: 11px;
             font-weight: 400;
             border-radius: 4px;
@@ -158,6 +180,12 @@
 
         .btn-record .material-symbols-rounded {
             font-size: 20px;
+            animation: recordPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes recordPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
         }
 
         .btn-record:hover {
@@ -263,6 +291,27 @@
         .btn-chat.chat-redirecting {
             color: rgba(255, 255, 255, 0.5);
             box-shadow: none;
+        }
+
+        /* Light theme: chat button with dark text & warm orange tint */
+        [data-theme="light"] .btn-chat {
+            background: linear-gradient(135deg, rgba(255, 64, 0, 0.12), rgba(255, 126, 50, 0.12));
+            border-color: rgba(255, 100, 20, 0.3);
+            color: #1d1d1f;
+        }
+        [data-theme="light"] .btn-chat:hover {
+            background: linear-gradient(135deg, rgba(255, 64, 0, 0.2), rgba(255, 126, 50, 0.2));
+            border-color: rgba(255, 100, 20, 0.45);
+            box-shadow: 0 0 24px rgba(255, 80, 10, 0.12);
+        }
+        [data-theme="light"] .btn-chat.chat-redirecting {
+            color: rgba(29, 29, 31, 0.4);
+        }
+        [data-theme="light"] .video-bottom-section {
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 80, 10, 0.14) 0%, transparent 70%);
+        }
+        [data-theme="light"] .video-bottom-section::before {
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 80, 10, 0.18) 0%, transparent 60%);
         }
 
         /* ── Content area ── */
@@ -470,7 +519,8 @@
         }
 
         .video-item.active {
-            background: var(--active-overlay);
+            background: var(--active-accent-bg);
+            border-color: var(--active-accent-border);
         }
 
         .video-item-details {
@@ -548,6 +598,31 @@
             color: #EF3535;
         }
         .status-error .status-dot { background: #EF3535; }
+
+        /* Light theme: stronger badge backgrounds + darker text */
+        [data-theme="light"] .status-done {
+            background: rgba(0, 182, 134, 0.12);
+            color: #008f6a;
+        }
+        [data-theme="light"] .status-done .status-dot { background: #008f6a; }
+
+        [data-theme="light"] .status-processing {
+            background: rgba(215, 195, 0, 0.12);
+            color: #a89800;
+        }
+        [data-theme="light"] .status-processing .status-dot { background: #a89800; }
+
+        [data-theme="light"] .status-recording {
+            background: rgba(139, 61, 255, 0.1);
+            color: #7030d4;
+        }
+        [data-theme="light"] .status-recording .status-dot { background: #7030d4; }
+
+        [data-theme="light"] .status-error {
+            background: rgba(239, 53, 53, 0.1);
+            color: #d42020;
+        }
+        [data-theme="light"] .status-error .status-dot { background: #d42020; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -695,8 +770,8 @@
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #fff;
+            border: 2px solid var(--spinner-border);
+            border-top-color: var(--spinner-top);
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
         }
@@ -889,9 +964,9 @@
         .processing-spinner {
             width: 28px;
             height: 28px;
-            border: 2.5px solid rgba(255, 255, 255, 0.1);
+            border: 2.5px solid var(--spinner-border);
             border-radius: 50%;
-            border-top-color: rgba(255, 255, 255, 0.5);
+            border-top-color: var(--spinner-top);
             animation: spin 0.8s linear infinite;
         }
 
@@ -983,6 +1058,183 @@
         ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
         button { cursor: pointer; }
+
+        /* ── Settings button (header) ── */
+        .btn-settings {
+            -webkit-app-region: no-drag;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            position: relative;
+        }
+
+        .btn-settings::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            right: 0;
+            padding: 4px 8px;
+            background: var(--tooltip-bg);
+            color: var(--tooltip-text);
+            box-shadow: var(--tooltip-shadow);
+            font-size: 11px;
+            font-weight: 400;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.12s;
+        }
+
+        .btn-settings:hover::after { opacity: 1; }
+
+        .btn-settings .material-symbols-rounded {
+            font-size: 20px;
+            transition: transform 0.4s ease;
+        }
+
+        .btn-settings:hover {
+            background: var(--hover-overlay-medium);
+            border-color: var(--border-medium);
+            color: var(--text-secondary);
+        }
+
+        .btn-settings:hover .material-symbols-rounded {
+            transform: rotate(90deg);
+        }
+
+        /* ── Settings Popover ── */
+        .settings-popover-wrap {
+            position: relative;
+        }
+
+        .settings-popover {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 240px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--menu-border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-menu);
+            padding: 0;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            transition: opacity 0.15s, transform 0.15s;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .settings-popover.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .settings-popover-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .settings-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .settings-name-input {
+            font-size: 13px;
+            color: var(--text-primary);
+            background: var(--input-bg);
+            border: 1px solid var(--border-medium);
+            border-radius: 6px;
+            padding: 5px 8px;
+            outline: none;
+            font-family: inherit;
+            width: 140px;
+            text-align: right;
+            transition: border-color 0.15s;
+        }
+
+        .settings-name-input:focus {
+            border-color: #FF4000;
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            display: flex;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .theme-toggle-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .theme-toggle-btn .material-symbols-rounded { font-size: 15px; }
+
+        .theme-toggle-btn:hover {
+            background: var(--hover-overlay-medium);
+        }
+
+        .theme-toggle-btn.active {
+            background: rgba(255, 64, 0, 0.12);
+            color: #FF4000;
+        }
+
+        .settings-popover-footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .settings-popover-footer img {
+            height: 14px;
+        }
+
+        .settings-popover-footer span {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 
@@ -990,10 +1242,40 @@
     <!-- Header -->
     <div class="history-header">
         <div class="header-left">
-            <img src="img/library.png" alt="" width="18" height="18" style="filter: brightness(0) invert(0.75); flex-shrink: 0;">
+            <img src="img/library.png" alt="" width="18" height="18" class="header-icon">
             <span class="header-title">Library</span>
         </div>
         <div class="header-right">
+            <div class="settings-popover-wrap">
+                <button id="settingsBtn" class="btn-settings" data-tooltip="Preferences">
+                    <span class="material-symbols-rounded">settings</span>
+                </button>
+                <div class="settings-popover" id="settingsPopover">
+                    <div class="settings-popover-body">
+                        <div class="settings-row">
+                            <span class="settings-label">Name</span>
+                            <input type="text" class="settings-name-input" id="settingsName" maxlength="50" />
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Theme</span>
+                            <div class="theme-toggle" id="themeToggle">
+                                <button class="theme-toggle-btn" data-theme="dark">
+                                    <span class="material-symbols-rounded">dark_mode</span>
+                                    Dark
+                                </button>
+                                <button class="theme-toggle-btn" data-theme="light">
+                                    <span class="material-symbols-rounded">light_mode</span>
+                                    Light
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-popover-footer">
+                        <img src="img/bloom_light.png" alt="Bloom" />
+                        <span>v2.1.0</span>
+                    </div>
+                </div>
+            </div>
             <button id="recordBtn" class="btn-record" data-tooltip="Start a recording">
                 <span id="recordBtnIcon" class="material-symbols-rounded">radio_button_checked</span>
             </button>

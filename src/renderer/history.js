@@ -449,7 +449,7 @@ async function handleShare() {
 function setChatState(state) {
     const btn = document.getElementById('chatBarBtn');
     if (!btn) return;
-    const icon = btn.querySelector('.material-icons-round');
+    const icon = btn.querySelector('.material-symbols-rounded');
     const label = btn.querySelector('span:last-child');
     if (!icon || !label) return;
 
@@ -643,5 +643,76 @@ async function initRecordingButton() {
     });
 }
 
+// --- Settings Popover ---
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    window.configAPI.saveConfig({ theme });
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+}
+
+async function initSettings() {
+    const popover = document.getElementById('settingsPopover');
+    const settingsBtn = document.getElementById('settingsBtn');
+
+    // Toggle popover
+    settingsBtn?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const isOpen = popover.classList.contains('visible');
+        if (isOpen) {
+            popover.classList.remove('visible');
+            return;
+        }
+        // Load current data
+        const config = await window.configAPI.getConfig();
+        const nameInput = document.getElementById('settingsName');
+        if (nameInput) nameInput.value = config.userName || '';
+        const currentTheme = config.theme || 'dark';
+        document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+        });
+        popover.classList.add('visible');
+    });
+
+    // Close on outside click (mousedown works in drag regions too)
+    document.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('.settings-popover-wrap')) {
+            popover?.classList.remove('visible');
+        }
+    });
+
+    // Name — save on blur
+    const nameInput = document.getElementById('settingsName');
+    if (nameInput) {
+        nameInput.addEventListener('blur', () => {
+            const name = nameInput.value.trim();
+            if (name) window.configAPI.saveConfig({ userName: name });
+        });
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
+        });
+    }
+
+    // Theme toggle
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    });
+
+    // Apply saved theme on load
+    const config = await window.configAPI.getConfig();
+    applyTheme(config.theme || 'dark');
+
+    // Listen for theme changes from other windows (don't save back to avoid loop)
+    window.configAPI.onThemeChanged((newTheme) => {
+        document.documentElement.setAttribute('data-theme', newTheme);
+        document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === newTheme);
+        });
+    });
+}
+
 // Start
 init();
+initSettings();

@@ -113,6 +113,16 @@ async function startSessionFlow() {
   try {
     addLog('App initializing...');
 
+    // Apply saved theme
+    const savedConfig = await window.configAPI.getConfig();
+    const theme = savedConfig.theme || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    // Listen for theme changes from other windows
+    window.configAPI.onThemeChanged((newTheme) => {
+        document.documentElement.setAttribute('data-theme', newTheme);
+    });
+
     // Init floating bar (wires up button handlers)
     console.log('Initializing bar...');
     await initBar(startSessionFlow);

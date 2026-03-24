@@ -1,6 +1,9 @@
 const picker = document.getElementById('picker');
 
 window.recorderAPI.onDisplayPickerInit((payload) => {
+    if (payload?.theme) {
+        document.documentElement.setAttribute('data-theme', payload.theme);
+    }
     const displays = Array.isArray(payload?.displays) ? payload.displays : [];
     const selectedId = payload?.selectedDisplayId || null;
 

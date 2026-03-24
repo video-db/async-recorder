@@ -2,14 +2,27 @@
 
 ## [2.1.0] - 2026-03-23
 
+### Theme System
+- Full light/dark theme across all windows: floating bar, library, display picker, tooltips
+- Semantic CSS variables for icons, spinners, badges, and accent colors
+- Theme sync across windows — changing theme in library updates the floating bar instantly
+- Light-themed tooltips, status badges, and settings popover
+- Accent-colored active state for recording list items
+
 ### Library
 - Dedicated "Bloom Recordings" collection — videos are now stored separately from the default collection
 - Chat button restyled with VideoDB orange spectrum and pulsating background
-- Recording button replaced with compact icon button (Material Symbols)
+- Settings popover with name editing, theme toggle, and Bloom branding
+- Settings gear icon with rotation animation on hover
+- Recording button with pulse animation (Material Symbols)
 - Custom instant tooltips replacing native title attributes
 - Consolidated to Material Symbols Rounded font across the library
-- CSS theme variable system for dark and light theme support
-- Header spacing refinements
+
+### Floating Bar
+- Unified close/library icon buttons with consistent hover behavior
+- Proper stop recording button with orange accent styling
+- Theme-aware grip dots, dividers, and icon tints
+- Display picker with light theme support
 
 ## [2.0.0] - 2026-03-19
 

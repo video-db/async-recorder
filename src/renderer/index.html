@@ -7,6 +7,47 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         /* ===========================================
+           Theme Variables
+           =========================================== */
+        :root, [data-theme="dark"] {
+            --bar-bg: rgba(22, 22, 24, 0.95);
+            --bar-bg-recording: rgba(20, 20, 20, 0.95);
+            --bar-text: #f7f7f7;
+            --bar-text-muted: #969696;
+            --bar-text-active: rgba(255, 255, 255, 0.9);
+            --bar-divider: rgba(255, 255, 255, 0.1);
+            --bar-grip-dot: rgba(255, 255, 255, 0.2);
+            --bar-hover: rgba(255, 255, 255, 0.06);
+            --bar-input-bg: rgba(255, 255, 255, 0.08);
+            --bar-input-border: rgba(255, 255, 255, 0.15);
+            --bar-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --bar-tooltip-bg: rgba(0, 0, 0, 0.85);
+            --bar-tooltip-text: #e0e0e0;
+            --bar-tooltip-shadow: none;
+            --bar-icon-off: brightness(0) invert(0.6);
+            --bar-icon-on: brightness(0) invert(1);
+        }
+
+        [data-theme="light"] {
+            --bar-bg: rgba(245, 245, 247, 0.92);
+            --bar-bg-recording: rgba(240, 240, 242, 0.95);
+            --bar-text: #1d1d1f;
+            --bar-text-muted: #86868b;
+            --bar-text-active: rgba(29, 29, 31, 0.9);
+            --bar-divider: rgba(0, 0, 0, 0.1);
+            --bar-grip-dot: rgba(0, 0, 0, 0.5);
+            --bar-hover: rgba(0, 0, 0, 0.05);
+            --bar-input-bg: rgba(0, 0, 0, 0.05);
+            --bar-input-border: rgba(0, 0, 0, 0.15);
+            --bar-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+            --bar-tooltip-bg: rgba(255, 255, 255, 0.95);
+            --bar-tooltip-text: #1d1d1f;
+            --bar-tooltip-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+            --bar-icon-off: brightness(0) invert(0.4);
+            --bar-icon-on: brightness(0);
+        }
+
+        /* ===========================================
            Reset & Base
            =========================================== */
         * {
@@ -23,7 +64,7 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #f7f7f7;
+            color: var(--bar-text);
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -41,44 +82,48 @@
             -webkit-app-region: drag;
             display: inline-flex;
             align-items: center;
-            padding: 8px 12px;
+            padding: 8px 8px;
             gap: 6px;
             height: 52px;
             margin: 0 auto 28px;
-            background: rgba(22, 22, 24, 0.95);
+            background: var(--bar-bg);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: none;
             border-radius: 14px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: var(--bar-shadow);
             transition: all 0.3s ease;
         }
 
         /* ===========================================
            Close Button
            =========================================== */
-        .bar-close {
-            background: none;
-            border: none;
-            cursor: pointer;
+        /* Shared style for standalone icon buttons (close, library) */
+        .bar-action-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 20px;
-            height: 20px;
-            flex-shrink: 0;
-            padding: 0;
-            opacity: 0.5;
-            transition: opacity 0.2s;
-        }
-
-        .bar-close:hover {
-            opacity: 0.9;
-        }
-
-        .bar-close img {
             width: 18px;
             height: 18px;
+            flex-shrink: 0;
+            padding: 0;
+            margin: 0 -2px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+
+        .bar-action-btn img {
+            width: 18px !important;
+            height: 18px !important;
+            max-width: 18px;
+            max-height: 18px;
+            filter: var(--bar-icon-off);
+            transition: filter 0.2s;
+        }
+
+        .bar-action-btn:hover img {
+            filter: var(--bar-icon-on);
         }
 
         /* ===========================================
@@ -102,7 +147,7 @@
             width: 4px;
             height: 4px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
+            background: var(--bar-grip-dot);
         }
 
         /* ===========================================
@@ -111,7 +156,7 @@
         .bar-divider {
             width: 1px;
             height: 28px;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--bar-divider);
             flex-shrink: 0;
         }
 
@@ -140,19 +185,19 @@
         }
 
         .source-pill:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--bar-hover);
         }
 
         .source-pill .source-icon {
             width: 16px;
             height: 16px;
             flex-shrink: 0;
-            filter: brightness(0) invert(0.6);
+            filter: var(--bar-icon-off);
             transition: filter 0.2s;
         }
 
         .source-pill.active .source-icon {
-            filter: brightness(0) invert(1);
+            filter: var(--bar-icon-on);
         }
 
         .source-pill .source-label {
@@ -160,7 +205,7 @@
             font-weight: 450;
             line-height: 1;
             letter-spacing: -0.02em;
-            color: #969696;
+            color: var(--bar-text-muted);
             white-space: nowrap;
             display: inline-block;
             width: 80px;
@@ -171,7 +216,7 @@
         }
 
         .source-pill.active .source-label {
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--bar-text-active);
         }
 
         .source-pill.disabled {
@@ -199,14 +244,14 @@
         }
 
         .display-pill:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--bar-hover);
         }
 
         .display-pill .source-icon {
             width: 16px;
             height: 16px;
             flex-shrink: 0;
-            filter: brightness(0) invert(1);
+            filter: var(--bar-icon-on);
         }
 
         .display-pill .display-label {
@@ -214,7 +259,7 @@
             font-weight: 450;
             line-height: 1;
             letter-spacing: -0.02em;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--bar-text-active);
             white-space: nowrap;
             display: inline-block;
             width: 80px;
@@ -227,6 +272,7 @@
             width: 16px;
             height: 16px;
             flex-shrink: 0;
+            color: var(--bar-text-active);
             transition: transform 0.2s;
         }
 
@@ -261,7 +307,7 @@
             font-weight: 600;
             line-height: 1;
             letter-spacing: -0.02em;
-            color: rgba(255, 255, 255, 0.9);
+            color: #fff;
             white-space: nowrap;
             transition: background 0.15s;
             flex-shrink: 0;
@@ -300,6 +346,34 @@
 
         .record-btn.loading .btn-spinner {
             display: block;
+        }
+
+        /* Stop Recording Button */
+        .stop-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 8px;
+            background: #FF4000;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s;
+            -webkit-app-region: no-drag;
+            position: relative;
+        }
+
+        .stop-btn:hover {
+            background: #CC2B02;
+        }
+
+        .stop-icon {
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 2px;
         }
 
 
@@ -347,10 +421,10 @@
             flex: 1;
             min-width: 0;
             padding: 6px 10px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: var(--bar-input-bg);
+            border: 1px solid var(--bar-input-border);
             border-radius: 8px;
-            color: #f7f7f7;
+            color: var(--bar-text);
             font-size: 13px;
             font-family: inherit;
             outline: none;
@@ -362,7 +436,7 @@
         }
 
         .rename-input::placeholder {
-            color: #969696;
+            color: var(--bar-text-muted);
         }
 
         .rename-save {
@@ -394,12 +468,12 @@
             gap: 8px;
             height: 52px;
             border-radius: 14px;
-            background: rgba(20, 20, 20, 0.95);
+            background: var(--bar-bg-recording);
             border: none;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: var(--bar-shadow);
         }
 
-        .floating-bar.recording .bar-close,
+        .floating-bar.recording #btn-close,
         .floating-bar.recording #btn-start-session,
         .floating-bar.recording #renameRow,
         .floating-bar.recording #btn-library,
@@ -454,7 +528,7 @@
         }
 
         .floating-bar.recording .display-pill:not(.active) .source-icon {
-            filter: brightness(0) invert(0.4);
+            filter: var(--bar-icon-off);
         }
 
         /* Status badge: left side with timer */
@@ -542,8 +616,9 @@
             left: 50%;
             transform: translateX(-50%);
             padding: 4px 8px;
-            background: rgba(0, 0, 0, 0.85);
-            color: #e0e0e0;
+            background: var(--bar-tooltip-bg);
+            color: var(--bar-tooltip-text);
+            box-shadow: var(--bar-tooltip-shadow);
             font-size: 11px;
             font-weight: 500;
             line-height: 1.3;
@@ -577,8 +652,8 @@
         </div>
 
         <!-- Close Button -->
-        <button id="btn-close" class="bar-close" data-tooltip="Hide bar">
-            <img src="img/cancel.png" alt="Close" width="24" height="24">
+        <button id="btn-close" class="bar-action-btn" data-tooltip="Hide bar">
+            <img src="img/cancel.png" alt="Close" width="14" height="14">
         </button>
 
         <div class="bar-divider"></div>
@@ -607,7 +682,7 @@
                 <img class="source-icon" src="img/screen_on.png" width="16" height="16" alt="">
                 <span id="displayLabel" class="display-label">Select display</span>
                 <svg class="chevron-icon" width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5 7.5L10 12.5L15 7.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </button>
         </div>
@@ -623,8 +698,8 @@
             <div class="btn-spinner"></div>
             <span class="btn-label">Start Recording</span>
         </button>
-        <button id="btn-stop-session" class="bar-action-btn hidden" data-tooltip="Stop Recording">
-            <img src="img/stop.png" alt="Stop">
+        <button id="btn-stop-session" class="stop-btn hidden" data-tooltip="Stop Recording">
+            <span class="stop-icon"></span>
         </button>
         <!-- Rename Row (hidden, shown after recording stops) -->
         <div id="renameRow" class="bar-rename hidden">
@@ -635,8 +710,8 @@
         <div id="libraryDivider" class="bar-divider"></div>
 
         <!-- Library Button -->
-        <button id="btn-library" class="source-pill" data-tooltip="Library">
-            <img src="img/library.png" alt="Library" style="width: 20px; height: 20px; filter: brightness(0) invert(0.75);">
+        <button id="btn-library" class="bar-action-btn" data-tooltip="Library">
+            <img src="img/library.png" alt="Library" width="14" height="14">
         </button>
 
     </div>

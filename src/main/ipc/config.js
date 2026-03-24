@@ -1,6 +1,6 @@
 'use strict';
 
-const { ipcMain, shell } = require('electron');
+const { ipcMain, shell, BrowserWindow } = require('electron');
 const { randomUUID } = require('crypto');
 const { getAppConfig, saveUserConfig, resetAppConfig } = require('../lib/config');
 const { CONFIG_FILE } = require('../lib/paths');
@@ -18,9 +18,18 @@ function registerConfigHandlers(getVideodbService) {
     return { ...config, isConnected: !!config.accessToken };
   });
 
-  ipcMain.handle('save-settings', (_event, data) => {
+  ipcMain.handle('save-settings', (event, data) => {
     try {
       saveUserConfig(data);
+      // Broadcast theme change to all other windows
+      if (data.theme) {
+        const senderId = event.sender.id;
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (win.webContents.id !== senderId && !win.isDestroyed()) {
+            win.webContents.send('theme-changed', data.theme);
+          }
+        }
+      }
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

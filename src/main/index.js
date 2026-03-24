@@ -210,7 +210,8 @@ function openDisplayPicker(payload) {
     displayPickerWindow.loadFile(path.join(RENDERER_DIR, 'display-picker.html'));
     displayPickerWindow.webContents.once('did-finish-load', () => {
       if (!displayPickerWindow || displayPickerWindow.isDestroyed()) return;
-      displayPickerWindow.webContents.send('display-picker:init', { displays, selectedDisplayId });
+      const theme = getAppConfig().theme || 'dark';
+      displayPickerWindow.webContents.send('display-picker:init', { displays, selectedDisplayId, theme });
       displayPickerWindow.show();
       displayPickerWindow.focus();
     });
