@@ -267,7 +267,7 @@ function createHistoryWindow(focusSessionId) {
     height: 700,
     title: 'Library',
     backgroundColor: '#000000',
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: PRELOAD_SCRIPT,
       contextIsolation: true,
@@ -303,8 +303,8 @@ function createModalWindow(page) {
     height: size.height,
     center: true,
     resizable: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...(process.platform === 'darwin' && { trafficLightPosition: { x: 16, y: 16 } }),
     backgroundColor: theme === 'light' ? '#faf9f7' : '#0c0c0d',
     webPreferences: {
       preload: PRELOAD_SCRIPT,

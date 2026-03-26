@@ -20,12 +20,15 @@ let spawnPatched = false;
 function applyVideoDBPatches() {
   if (spawnPatched) return;
 
-  // v0.2.2+ stores the binary inside VideoDBCapture.app/Contents/MacOS/
+  // v0.2.2+ stores the binary inside VideoDBCapture.app/Contents/MacOS/ on macOS,
+  // directly in bin/ on Windows
   const binBase = path
     .join(app.getAppPath(), 'node_modules', 'videodb', 'bin')
     .replace('app.asar', 'app.asar.unpacked');
 
-  const srcDir = path.join(binBase, 'VideoDBCapture.app', 'Contents', 'MacOS');
+  const srcDir = process.platform === 'darwin'
+    ? path.join(binBase, 'VideoDBCapture.app', 'Contents', 'MacOS')
+    : binBase;
 
   const destDir = path.join(app.getPath('userData'), 'bin');
 
@@ -63,7 +66,7 @@ function applyVideoDBPatches() {
     if (
       typeof cmd === 'string' &&
       cmd.includes('capture') &&
-      !cmd.startsWith(destDir) &&
+      !path.normalize(cmd).startsWith(path.normalize(destDir)) &&
       fs.existsSync(writableBin)
     ) {
       const patchedOpts = { ...opts, cwd: destDir };

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.0] - 2026-03-25
+
+### Platform Support
+- Windows support — recording, device selection, and permissions now work on Windows
+- Windows installer (NSIS) for easy distribution
+
+### Stability
+- Improved capture process lifecycle to prevent orphaned processes
+- Fixed recording failures caused by stale binary instances
+
+### UI
+- Native window controls on each platform
+
 ## [2.1.1] - 2026-03-25
 
 ### Library

@@ -23,7 +23,7 @@ let isStartingRecording = false;
 function registerCaptureHandlers(getVideodbService, getMainWindow) {
   ipcMain.handle('recorder-start-recording', async (_event, clientSessionId, config) => {
     // Guard: reject if a recording is already in progress or starting
-    if (isStartingRecording || getCaptureClient()) {
+    if (isStartingRecording || getCaptureClient()?.isCapturing) {
       console.warn('Recording already in progress, ignoring duplicate start request');
       return { success: false, error: 'Recording already in progress' };
     }
@@ -76,20 +76,21 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
         return { success: false, error: 'Failed to get session token. Please register first.' };
       }
 
-      // 4. Create CaptureClient
-      if (app.isPackaged) applyVideoDBPatches();
-
-      const captureOptions = { sessionToken };
-      if (process.env.VIDEODB_API_URL) {
-        captureOptions.apiUrl = process.env.VIDEODB_API_URL;
+      // 4. Reuse existing CaptureClient (from list-devices) or create a new one
+      let captureClient = getCaptureClient();
+      if (!captureClient) {
+        if (app.isPackaged) applyVideoDBPatches();
+        const captureOptions = { sessionToken };
+        if (process.env.VIDEODB_API_URL) {
+          captureOptions.apiUrl = process.env.VIDEODB_API_URL;
+        }
+        console.log('Creating CaptureClient', captureOptions);
+        captureClient = new CaptureClient(captureOptions);
+        captureClient.on('error', (err) => {
+          console.error('CaptureClient error:', err.message || err.type);
+        });
+        setCaptureClient(captureClient);
       }
-      console.log('Creating CaptureClient', captureOptions);
-
-      const captureClient = new CaptureClient(captureOptions);
-      captureClient.on('error', (err) => {
-        console.error('CaptureClient error:', err.message || err.type);
-      });
-      setCaptureClient(captureClient);
 
       // 5. List channels
       console.log('Listing available channels...');
@@ -139,21 +140,23 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
         return { success: false, error: 'No capture channels available. Check permissions.' };
       }
 
-      // 7. Check permissions
-      const screenAccess = systemPreferences.getMediaAccessStatus('screen');
-      const micAccess = systemPreferences.getMediaAccessStatus('microphone');
-      console.log(`Permissions — screen: ${screenAccess}, microphone: ${micAccess}`);
+      // 7. Check permissions (macOS only — Windows/Linux have no TCC-style gate)
+      if (process.platform === 'darwin') {
+        const screenAccess = systemPreferences.getMediaAccessStatus('screen');
+        const micAccess = systemPreferences.getMediaAccessStatus('microphone');
+        console.log(`Permissions — screen: ${screenAccess}, microphone: ${micAccess}`);
 
-      if (screenAccess !== 'granted') {
-        return { success: false, error: 'Screen recording permission not granted. Enable in System Settings > Privacy & Security > Screen Recording, then restart.' };
-      }
-      if (micAccess !== 'granted') {
-        console.log('Requesting microphone access...');
-        const granted = await systemPreferences.askForMediaAccess('microphone');
-        if (!granted) {
-          return { success: false, error: 'Microphone permission denied. Enable in System Settings > Privacy & Security > Microphone, then restart.' };
+        if (screenAccess !== 'granted') {
+          return { success: false, error: 'Screen recording permission not granted. Enable in System Settings > Privacy & Security > Screen Recording, then restart.' };
         }
-        console.log('Microphone access granted');
+        if (micAccess !== 'granted') {
+          console.log('Requesting microphone access...');
+          const granted = await systemPreferences.askForMediaAccess('microphone');
+          if (!granted) {
+            return { success: false, error: 'Microphone permission denied. Enable in System Settings > Privacy & Security > Microphone, then restart.' };
+          }
+          console.log('Microphone access granted');
+        }
       }
 
       // 8. Start capture
@@ -197,13 +200,8 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
       console.warn('CaptureClient stop warning:', stopErr.message);
     }
 
-    try {
-      await captureClient.shutdown();
-      console.log('CaptureClient shutdown complete');
-    } catch (shutdownErr) {
-      console.warn('CaptureClient shutdown warning:', shutdownErr.message);
-    }
-    setCaptureClient(null);
+    // Keep the client alive — the binary stays running so the next
+    // recording can reuse it without spawning a second process.
 
     // Mark as processing and start polling for export in background
     const recording = findRecordingBySessionId(sessionId);
@@ -256,7 +254,7 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
     }
   });
 
-  // --- List available devices ---
+  // --- List available devices (reuse or create-and-persist a single CaptureClient) ---
   ipcMain.handle('list-devices', async () => {
     try {
       const apiKey = _getCurrentUserApiKey();
@@ -270,23 +268,27 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
         return { success: false, error: 'Failed to get session token' };
       }
 
-      if (app.isPackaged) applyVideoDBPatches();
-      const tempOptions = { sessionToken };
-      if (process.env.VIDEODB_API_URL) tempOptions.apiUrl = process.env.VIDEODB_API_URL;
-
-      const tempClient = new CaptureClient(tempOptions);
-      try {
-        const channels = await tempClient.listChannels();
-
-        const mics = channels.mics.map(ch => ({ id: ch.id, name: ch.name }));
-        const systemAudio = channels.systemAudio.map(ch => ({ id: ch.id, name: ch.name }));
-        const displays = channels.displays.map(ch => ({ id: ch.id, name: ch.name }));
-
-        console.log(`[list-devices] mics: ${mics.length}, audio: ${systemAudio.length}, displays: ${displays.length}`);
-        return { success: true, mics, systemAudio, displays };
-      } finally {
-        await tempClient.shutdown().catch(() => {});
+      // Reuse existing client if available; otherwise create and persist one
+      let client = getCaptureClient();
+      if (!client) {
+        if (app.isPackaged) applyVideoDBPatches();
+        const options = { sessionToken };
+        if (process.env.VIDEODB_API_URL) options.apiUrl = process.env.VIDEODB_API_URL;
+        client = new CaptureClient(options);
+        client.on('error', (err) => {
+          console.error('CaptureClient error:', err.message || err.type);
+        });
+        setCaptureClient(client);
       }
+
+      const channels = await client.listChannels();
+
+      const mics = channels.mics.map(ch => ({ id: ch.id, name: ch.name }));
+      const systemAudio = channels.systemAudio.map(ch => ({ id: ch.id, name: ch.name }));
+      const displays = channels.displays.map(ch => ({ id: ch.id, name: ch.name }));
+
+      console.log(`[list-devices] mics: ${mics.length}, audio: ${systemAudio.length}, displays: ${displays.length}`);
+      return { success: true, mics, systemAudio, displays };
     } catch (error) {
       console.error('Error listing devices:', error);
       return { success: false, error: error.message };
@@ -303,21 +305,23 @@ function registerCaptureHandlers(getVideodbService, getMainWindow) {
       };
       const sdkPermission = permissionMap[type] || type;
 
-      const client = getCaptureClient();
+      // Reuse existing client; create and persist if needed
+      let client = getCaptureClient();
       if (!client) {
         const videodbService = getVideodbService();
         const apiKey = _getCurrentUserApiKey();
         const sessionToken = apiKey ? await getSessionToken(videodbService, apiKey) : null;
-        if (sessionToken) {
-          if (app.isPackaged) applyVideoDBPatches();
-          const tempOptions = { sessionToken };
-          if (process.env.VIDEODB_API_URL) tempOptions.apiUrl = process.env.VIDEODB_API_URL;
-          const tempClient = new CaptureClient(tempOptions);
-          const result = await tempClient.requestPermission(sdkPermission);
-          await tempClient.shutdown();
-          return { success: true, status: result };
+        if (!sessionToken) {
+          return { success: true, status: 'undetermined' };
         }
-        return { success: true, status: 'undetermined' };
+        if (app.isPackaged) applyVideoDBPatches();
+        const options = { sessionToken };
+        if (process.env.VIDEODB_API_URL) options.apiUrl = process.env.VIDEODB_API_URL;
+        client = new CaptureClient(options);
+        client.on('error', (err) => {
+          console.error('CaptureClient error:', err.message || err.type);
+        });
+        setCaptureClient(client);
       }
 
       const result = await client.requestPermission(sdkPermission);

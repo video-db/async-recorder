@@ -1,6 +1,6 @@
 {
   "name": "bloom",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Bloom — Screen recorder powered by VideoDB",
   "main": "src/main/index.js",
   "scripts": {
@@ -61,11 +61,20 @@
         { "x": 400, "y": 200, "type": "link", "path": "/Applications" }
       ]
     },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico",
+      "artifactName": "bloom-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
     "afterPack": "./build/afterPack.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "sql.js": "^1.11.0",
-    "videodb": "^0.2.3"
+    "videodb": "video-db/videodb-node#release-0.2.4"
   }
 }
