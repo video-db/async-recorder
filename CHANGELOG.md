@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.0] - 2026-04-06
+
+### Audio
+- Better audio input device support
+
+### Library
+- Updated VideoDB SDK to 0.2.6
+
 ## [2.2.0] - 2026-03-25
 
 ### Platform Support
